@@ -1,0 +1,10 @@
+# Install the LexFlow provider without changing the profile's current default model or
+# web-search route. Optional capabilities require explicit profile config.
+- insert:
+    - id: llm-openai-codex
+      name: '@lexflow/codex-connect'
+      config:
+        enableProxy: false
+        enableSearch: false
+        enableImageTool: false
+        enableImageGeneration: false

@@ -1,0 +1,41 @@
+{
+  "name": "@lexflow/codex-connect",
+  "displayName": "Codex Connect",
+  "description": "LexFlow-owned Codex provider, OAuth, search, image, proxy and diagnostics integration.",
+  "version": "0.1.0-alpha.4.23-lexflow.1",
+  "author": "Frank Song",
+  "contributors": ["Yan-Zero (original dsh-codex author)"],
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "bin": {
+    "dsh-codex-connect": "lib/bin.js",
+    "lexflow-codex-connect": "lib/bin.js"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./invariant": "./lib/invariant.js",
+    "./compatibility.json": "./compatibility.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": ["@lexflow/dsh-adapter"],
+      "platform": "web"
+    }
+  },
+  "dependencies": {
+    "undici": "^7.29.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@lexflow/dsh-adapter": "0.2.0",
+    "react": "^18.2.0"
+  }
+}

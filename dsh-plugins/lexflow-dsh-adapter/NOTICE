@@ -1,0 +1,8 @@
+LexFlow DeepSeek Harness adapter
+
+The version-specific layout, sidebar, and theme presenter implementation is
+derived from DeepSeek Harness 0.1.2-alpha.4, licensed under the MIT License.
+Copyright and permission notices are retained with the bundled upstream package.
+LexFlow modifications include product-page routing and macOS window integration.
+
+These implementations belong to the adapter boundary, not the product plugins.

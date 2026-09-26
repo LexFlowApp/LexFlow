@@ -1,0 +1,13 @@
+node_modules/
+out/
+dist/
+.DS_Store
+npm-debug.log*
+assets/deepseek.icns
+lexflow-work/
+
+backup/
+
+# 本地调试脚本（zz-*.mjs 仅为开发期临时探针）
+scripts/zz-*.mjs
+*.bak-*

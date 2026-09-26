@@ -1,0 +1,67 @@
+diff --git a/dist/inline-preview.js b/dist/inline-preview.js
+index 67f18b3d3f9856530dd5cda94bb18d900657c8ca..fa3caf24d7e0c0d5126ea452e155bcfd02f5fe8c 100644
+--- a/dist/inline-preview.js
++++ b/dist/inline-preview.js
+@@ -195,6 +195,12 @@ const HIDEABLE_SYNTAX = new Set([
+ // The same token names can appear under an Image node — those stay
+ // on the line-based rule because images are a different UX surface.
+ const LINK_CHILD_SYNTAX = new Set(['LinkMark', 'URL', 'LinkTitle']);
++// LexFlow patch: inline mark syntax whose visibility follows the
++// mark-scoped rule (cursor-inside-this-mark) instead of the default
++// line-based rule, so clicking plain text in a paragraph no longer
++// reveals ** / ` / ~~ source of unrelated inline marks on that line.
++const INLINE_MARK_SYNTAX = new Set(['EmphasisMark', 'CodeMark', 'StrikethroughMark', 'HighlightMark']);
++const INLINE_MARK_CONTAINERS = new Set(['StrongEmphasis', 'Emphasis', 'InlineCode', 'Strikethrough', 'Highlight']);
+ const INLINE_MARK_CLASS = {
+     StrongEmphasis: 'cm-atomic-strong',
+     Emphasis: 'cm-atomic-em',
+@@ -380,6 +386,8 @@ function buildInlineDecorations(view) {
+     // aren't included; they already have their own widget UX and the
+     // line-based reveal is the right fit for `![alt](url)`.
+     const activeLinkStarts = new Set();
++    // LexFlow patch: mark-scoped activation starts (see INLINE_MARK_SYNTAX).
++    const activeMarkStarts = new Set();
+     // Single pre-order walk. A tree walk visits a parent before its
+     // children, which lets us compute two pieces of look-ahead state on
+     // the way in — right before the children that depend on them:
+@@ -422,6 +430,15 @@ function buildInlineDecorations(view) {
+                     }
+                 }
+             }
++            // LexFlow patch: same inclusive-overlap rule for inline marks.
++            if (INLINE_MARK_CONTAINERS.has(node.name) && view.hasFocus) {
++                for (const range of state.selection.ranges) {
++                    if (range.from <= node.to && range.to >= node.from) {
++                        activeMarkStarts.add(node.from);
++                        break;
++                    }
++                }
++            }
+             const lineClass = LINE_CLASS_BY_BLOCK[node.name];
+             if (lineClass) {
+                 const firstLine = doc.lineAt(node.from);
+@@ -442,7 +459,23 @@ function buildInlineDecorations(view) {
+                 // Image node falls through to line-based — images have
+                 // their own widget UX that the line-based reveal fits.
+                 let shouldHide;
+-                if (LINK_CHILD_SYNTAX.has(node.name)) {
++                if (INLINE_MARK_SYNTAX.has(node.name)) {
++                    // LexFlow patch: reveal an inline mark's source only when
++                    // the cursor is inside that specific mark, not anywhere on
++                    // its line. A stray mark (e.g. CodeMark under a non-mark
++                    // context) falls through to the line-based rule.
++                    let parent = node.node.parent;
++                    while (parent && !INLINE_MARK_CONTAINERS.has(parent.name)) {
++                        parent = parent.parent;
++                    }
++                    if (parent && INLINE_MARK_CONTAINERS.has(parent.name)) {
++                        shouldHide = !activeMarkStarts.has(parent.from);
++                    }
++                    else {
++                        shouldHide = !activeLines.has(lineNum);
++                    }
++                }
++                else if (LINK_CHILD_SYNTAX.has(node.name)) {
+                     let parent = node.node.parent;
+                     while (parent && parent.name !== 'Link' && parent.name !== 'Image') {
+                         parent = parent.parent;

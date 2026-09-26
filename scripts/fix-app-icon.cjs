@@ -1,0 +1,15 @@
+const fs = require('node:fs')
+const path = require('node:path')
+const { execFileSync } = require('node:child_process')
+
+const root = path.join(__dirname, '..')
+const app = path.join(root, 'dist', 'forge', 'LexFlow-darwin-arm64', 'LexFlow.app')
+const resources = path.join(app, 'Contents', 'Resources')
+const info = path.join(app, 'Contents', 'Info.plist')
+const source = path.join(root, 'assets', 'lexflow.icns')
+const destination = path.join(resources, 'lexflow.icns')
+
+if (!fs.existsSync(app) || !fs.existsSync(source)) throw new Error('LexFlow 应用包或图标不存在。')
+fs.copyFileSync(source, destination)
+execFileSync('/usr/bin/plutil', ['-replace', 'CFBundleIconFile', '-string', 'lexflow.icns', info])
+console.log('LexFlow application icon installed.')

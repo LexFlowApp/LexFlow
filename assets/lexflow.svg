@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254">
+  <title>LexFlow</title>
+  <defs>
+    <clipPath id="macos-icon-mask">
+      <rect x="48" y="48" width="1158" height="1158" rx="226"/>
+    </clipPath>
+  </defs>
+  <image href="lexflow-master.png" x="0" y="0" width="1254" height="1254" clip-path="url(#macos-icon-mask)"/>
+</svg>
