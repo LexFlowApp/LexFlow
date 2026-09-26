@@ -16,9 +16,7 @@
         "webServer",
         "tools",
         "settings",
-        "llm",
-        "authorization",
-        "credentials"
+        "llm"
       ]
     },
     "client": {

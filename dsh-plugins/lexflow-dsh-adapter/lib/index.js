@@ -68,7 +68,10 @@ export function derefConfig(raw) {
  * 凭据写入共享凭证存储；模型目录从同一存储读取，因此凭证一旦落盘，对应模型自动出现在选择器里。
  * 产品插件因此无需知道凭证键格式、通知载荷或流程细节，也无需自建凭据文件。
  *
- * @param ctx - 适配层宿主上下文（dsh.host.inject 已注入 authorization 与 credentials）。
+ * 两个服务按调用时惰性获取（与底座 dsh-llm-pi-ai 取 credentials 的方式一致），
+ * 不写进 dsh.host.inject：未挂载授权／凭证服务的组合里，本桥只报不可用，不会拖垮适配层挂载。
+ *
+ * @param ctx - 适配层宿主上下文。
  * @returns 冻结的服务商登录面。
  */
 function createProviderAuth(ctx) {
