@@ -357,7 +357,10 @@ window.__ModuleLoader__.load({
       // --dsh-chat-content-width 驱动，是原生列宽调整器的目标属性，覆盖它会让调整器失效。
       '[class*="EvIC1a_column"] { --dsh-chat-flow-gap: 12px !important; }',
       // 下内距 12→32px：对话内容与输入区之间留出呼吸空间，避免正文贴着输入框。
-      '[class*="EvIC1a_scroll"] { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 56px !important; }',
+      // 对话区容器底部留出 Flowing 条的预留带：预留带在滚动容器之外，
+      // 消息被裁剪在滚动容器内，因此运行态指示永远压不到消息（真不重叠，而非遮罩掩盖）。
+      '[class*="EvIC1a_root"] { padding-bottom: 26px !important; }',
+      '[class*="EvIC1a_scroll"] { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 30px !important; }',
       // 输入区紧凑：卡片圆角 22→14px、顶部内距 8→6px、行间距 12→10px；
       // 权限与模型触发器 13→12px（随字号设置联动）；统计行左右内距 32→28px。
       '[class*="uV2eYG_card"] { border-radius: 14px !important; gap: 10px !important; padding-top: 6px !important; }',
@@ -462,12 +465,21 @@ window.__ModuleLoader__.load({
           const text = (label?.textContent ?? '').trim()
           if (text.startsWith('深度求索中') || text.startsWith('Deep diving')) {
             root.setAttribute('data-lexflow-flowing', 'true')
+            // 停在对话区底部的预留带内：底缘取对话区容器下沿（预留带即在此），
+            // 左缘对齐消息内容的左内缘，因此既不压消息也不压输入框。
+            // 预留带由 CSS 给 [class*="EvIC1a_root"] 的 padding-bottom 生成；
+            // 对话区不可用时退回输入卡几何，保证老旧布局下仍有合理停靠点。
+            const area = document.querySelector('[class*="EvIC1a_root"]')
+            const scroll = document.querySelector('[class*="EvIC1a_scroll"]')
             const card = document.querySelector('[class*="uV2eYG_card"]')
-            if (card) {
-              const rect = card.getBoundingClientRect()
+            if (area || card) {
               const style = document.documentElement.style
-              const left = `${Math.round(rect.left)}px`
-              const bottom = `${Math.round(window.innerHeight - rect.top + 6)}px`
+              const rect = (area ?? card).getBoundingClientRect()
+              const inset = scroll ? parseFloat(getComputedStyle(scroll).paddingLeft) || 0 : 0
+              const left = `${Math.round((scroll ? scroll.getBoundingClientRect().left : rect.left) + inset)}px`
+              const bottom = area
+                ? `${Math.round(window.innerHeight - rect.bottom + 1)}px`
+                : `${Math.round(window.innerHeight - rect.top + 6)}px`
               if (style.getPropertyValue('--lexflow-flowing-left') !== left) style.setProperty('--lexflow-flowing-left', left)
               if (style.getPropertyValue('--lexflow-flowing-bottom') !== bottom) style.setProperty('--lexflow-flowing-bottom', bottom)
             }
