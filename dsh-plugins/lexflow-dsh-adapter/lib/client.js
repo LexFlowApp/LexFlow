@@ -470,13 +470,18 @@ window.__ModuleLoader__.load({
             // 预留带由 CSS 给 [class*="EvIC1a_root"] 的 padding-bottom 生成；
             // 对话区不可用时退回输入卡几何，保证老旧布局下仍有合理停靠点。
             const area = document.querySelector('[class*="EvIC1a_root"]')
-            const scroll = document.querySelector('[class*="EvIC1a_scroll"]')
             const card = document.querySelector('[class*="uV2eYG_card"]')
-            if (area || card) {
+            // 左右对齐的依据是正文内容列（EvIC1a_column：居中并受内容宽度约束），
+            // 它的左缘就是消息文字的左缘，而不是对话区容器的外缘——后者在宽窗口下会多出居中留白。
+            // 依次退回到滚动容器、内容区、输入卡，保证底座改版后仍有合理停靠点。
+            const column = document.querySelector('[class*="EvIC1a_column"]')
+              ?? document.querySelector('[class*="EvIC1a_scroll"]')
+              ?? area
+              ?? card
+            if (column !== null) {
               const style = document.documentElement.style
               const rect = (area ?? card).getBoundingClientRect()
-              const inset = scroll ? parseFloat(getComputedStyle(scroll).paddingLeft) || 0 : 0
-              const left = `${Math.round((scroll ? scroll.getBoundingClientRect().left : rect.left) + inset)}px`
+              const left = `${Math.round(column.getBoundingClientRect().left)}px`
               const bottom = area
                 ? `${Math.round(window.innerHeight - rect.bottom + 1)}px`
                 : `${Math.round(window.innerHeight - rect.top + 6)}px`

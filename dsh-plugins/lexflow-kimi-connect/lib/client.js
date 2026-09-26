@@ -39,17 +39,18 @@ window.__ModuleLoader__.load({
     function KimiSubscription() {
       const [state, setState] = React.useState({ phase: 'loading', notice: null, error: null })
       const [busy, setBusy] = React.useState(false)
+      // signal 可缺省：act（按钮触发的手动刷新）没有中止来源，不应让调用方编一个假 signal。
       const read = React.useCallback(async (signal) => {
         try {
           const value = await request('status', 'GET', signal)
-          if (signal.aborted) return
+          if (signal?.aborted) return
           setState({
             phase: value.configured === true ? 'signed-in' : value.notice ? 'awaiting' : 'idle',
             notice: value.notice ?? null,
             error: value.error ?? null
           })
         } catch (error) {
-          if (signal.aborted) return
+          if (signal?.aborted) return
           setState({ phase: 'error', notice: null, error: error instanceof Error ? error.message : '状态读取失败。' })
         }
       }, [])
