@@ -80,7 +80,28 @@ function createProviderAuth(ctx) {
   const keyFor = (providerId) => credentialKey('llm-pi-ai', providerId)
   const sessionOf = (providerId) => sessions.get(providerId) ?? { inFlight: false, notice: null, error: null }
   const idle = { available: false, configured: false, inFlight: false, methods: [], notice: null, error: null }
-  return Object.freeze({
+  const face = {
+    /**
+     * 确保某个内置服务商在模型层的路由表中已声明（幂等）。
+     *
+     * 底层只为「已声明的路由」注册模型，所以仅登录（凭据落盘）不足以让模型出现，
+     * 还必须在设置里声明该路由。声明走 settings.mutate——与设置界面写配置同一条通道，
+     * 对用户已有的 providers 字典做路径级修改（合并）。这很关键：覆盖层式的整段注入
+     * 会把整份 providers 替换掉，抹平用户自己接入的服务商。
+     * @param providerId - 底层服务商标识（如 kimi-coding）。
+     * @param displayName - 界面上展示的服务商名称。
+     * @returns 本次是否新写入（已声明时返回 false）。
+     */
+    async ensureProviderRoute(providerId, displayName) {
+      const llm = service(ctx, 'llm')
+      const settings = service(ctx, 'settings')
+      if (llm === undefined || settings === undefined || typeof settings.mutate !== 'function') return false
+      if (llm.listProviders().some((provider) => provider.id === providerId)) return false
+      await settings.mutate('llm-pi-ai', [
+        { op: 'set', path: ['providers', providerId, 'displayName'], value: displayName ?? providerId },
+      ])
+      return true
+    },
     /** 查询某个服务商的登录可用性与当前状态。 */
     async status(providerId) {
       const auth = service(ctx, 'authorization')
@@ -104,7 +125,7 @@ function createProviderAuth(ctx) {
      * 发起一次登录。设备码流程先取得验证网址与用户码（notify），再进入轮询；
      * 因此这里立即返回，由调用方轮询 status() 取回验证信息与最终结果。
      */
-    login(providerId, method) {
+    login(providerId, method, displayName) {
       const auth = requiredService(ctx, 'authorization')
       const existing = sessionOf(providerId)
       if (existing.inFlight) return { started: false, notice: existing.notice }
@@ -120,10 +141,15 @@ function createProviderAuth(ctx) {
           // 设备码流程不向用户提问；若上游改为需要输入，这里明确拒绝，避免请求静默挂起。
           prompt: () => Promise.reject(new Error('该登录方式无需额外输入。')),
         },
-      }).then((outcome) => {
+      }).then(async (outcome) => {
         session.inFlight = false
         session.notice = null
         session.error = outcome?.status === 'authorized' || outcome?.status === 'cancelled' ? null : '登录未完成，请重试。'
+        // 登录只写入凭据；路由声明补上后，模型才会出现在选择器里（失败不影响登录本身）。
+        if (outcome?.status === 'authorized') {
+          try { await face.ensureProviderRoute(providerId, displayName) }
+          catch (error) { (ctx.logger ?? console).warn?.(`lexflow: 未能声明服务商路由 ${providerId}`, error) }
+        }
       }).catch((error) => {
         session.inFlight = false
         session.notice = null
@@ -144,7 +170,8 @@ function createProviderAuth(ctx) {
       sessions.delete(providerId)
       return { ok: true }
     },
-  })
+  }
+  return Object.freeze(face)
 }
 
 function createHostFace(ctx) {

@@ -2,6 +2,8 @@ export const inject = ['lexflow']
 
 /** 底层模型库中 Kimi 套餐（Kimi For Coding）的提供方标识。 */
 const PROVIDER_ID = 'kimi-coding'
+/** 模型选择器里展示的服务商名称。 */
+const DISPLAY_NAME = 'Kimi'
 const AUTH_BASE = '/plugins/lexflow-kimi/auth'
 
 function json(res, status, payload) {
@@ -32,8 +34,19 @@ export function apply(ctx) {
     },
   }), `lexflow-kimi-connect: auth ${name}`)
 
-  route('status', 'GET', () => auth.status(PROVIDER_ID))
-  route('login', 'POST', () => auth.login(PROVIDER_ID, 'oauth'))
+  route('status', 'GET', async () => {
+    const status = await auth.status(PROVIDER_ID)
+    // 界面轮询到「已登录」时顺手补一次路由声明，使模型在下一轮轮询内出现；
+    // 幂等（已声明则不写入），失败只记录，不改动返回给界面的状态。
+    if (status?.configured === true) {
+      try { await auth.ensureProviderRoute(PROVIDER_ID, DISPLAY_NAME) }
+      catch (error) { (ctx.logger ?? console).warn?.('lexflow-kimi-connect: 未能补齐服务商路由声明', error) }
+    }
+    return status
+  })
+  route('login', 'POST', () => auth.login(PROVIDER_ID, 'oauth', DISPLAY_NAME))
   route('cancel', 'POST', () => auth.cancel(PROVIDER_ID))
   route('logout', 'POST', () => auth.logout(PROVIDER_ID))
+  // 路由声明补在两个可靠时机：登录成功后（由适配层负责）与界面打开 Kimi 卡片时
+  // （上面的 status 分支）。插件挂载时刻的配置尚未就绪，实测补不上，故不在此处尝试。
 }

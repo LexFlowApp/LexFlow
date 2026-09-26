@@ -24,8 +24,8 @@ async function mount(overrides = {}) {
       calls.push(['status', provider])
       return { available: true, configured: false, inFlight: false, methods: [{ id: 'oauth', label: 'Sign in with Kimi Code' }], notice: null, error: null }
     },
-    login: (provider, method) => {
-      calls.push(['login', provider, method])
+    login: (provider, method, displayName) => {
+      calls.push(['login', provider, method, displayName])
       return { started: true, notice: null }
     },
     cancel: (provider) => {
@@ -35,6 +35,10 @@ async function mount(overrides = {}) {
     logout: async (provider) => {
       calls.push(['logout', provider])
       return { ok: true }
+    },
+    ensureProviderRoute: async (provider, displayName) => {
+      calls.push(['ensure', provider, displayName])
+      return false
     },
     ...overrides,
   }
@@ -64,15 +68,23 @@ test('kimi-connect drives the catalog provider through the adapter bridge', asyn
   assert.equal(status.status, 200)
   assert.equal(status.body.ok, true)
   assert.equal(status.body.value.available, true)
-  assert.deepEqual(calls[0], ['status', 'kimi-coding'])
-  // 登录：套餐必须用 oauth（设备码）方式，不走 API Key。
+  assert.ok(calls.some((call) => call[0] === 'status' && call[1] === 'kimi-coding'))
+  // 登录：套餐必须用 oauth（设备码）方式，不走 API Key；并带上界面展示名。
   await routes.get('/plugins/lexflow-kimi/auth/login').handler({ method: 'POST' }, fakeResponse())
-  assert.deepEqual(calls[1], ['login', 'kimi-coding', 'oauth'])
+  assert.ok(calls.some((call) => call[0] === 'login' && call[1] === 'kimi-coding' && call[2] === 'oauth' && call[3] === 'Kimi'))
   // 取消与退出同样落到同一服务商。
   await routes.get('/plugins/lexflow-kimi/auth/cancel').handler({ method: 'POST' }, fakeResponse())
-  assert.deepEqual(calls[2], ['cancel', 'kimi-coding'])
+  assert.ok(calls.some((call) => call[0] === 'cancel' && call[1] === 'kimi-coding'))
   await routes.get('/plugins/lexflow-kimi/auth/logout').handler({ method: 'POST' }, fakeResponse())
-  assert.deepEqual(calls[3], ['logout', 'kimi-coding'])
+  assert.ok(calls.some((call) => call[0] === 'logout' && call[1] === 'kimi-coding'))
+})
+
+test('kimi-connect declares the catalog route once the account is signed in', async () => {
+  // 已登录（含升级前就已登录）时，挂载与状态查询都应补一次路由声明，模型才会出现。
+  const signedIn = { status: async () => ({ available: true, configured: true, inFlight: false, methods: [], notice: null, error: null }) }
+  const { routes, calls } = await mount(signedIn)
+  await routes.get('/plugins/lexflow-kimi/auth/status').handler({ method: 'GET' }, fakeResponse())
+  assert.ok(calls.some((call) => call[0] === 'ensure' && call[1] === 'kimi-coding' && call[2] === 'Kimi'))
 })
 
 test('kimi-connect rejects a wrong method', async () => {

@@ -227,7 +227,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.4.1"
+    const LEXFLOW_PRODUCT_VERSION = "0.4.2"
     const LEXFLOW_DSH_VERSION = "0.1.7-alpha.1"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
