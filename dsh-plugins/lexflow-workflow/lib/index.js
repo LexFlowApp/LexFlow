@@ -86,7 +86,13 @@ export function apply(ctx) {
       present.add(old.fileId)
       if (old.disabled || old.revision !== wanted.revision) surface.replace(event, wanted.message)
     }
-    for (const [fileId, item] of state.active) if (!present.has(fileId)) surface.append(item.message)
+    // 新增的工作流上下文交给引擎统一追加，不自己写表面。
+    // 引擎在本步的系统消息落盘之后才写入 decision.messages，顺序天然满足会话格式
+    // 要求的「表面首节点必须是系统消息」；自己 append 会抢在系统消息之前成为首节点，
+    // 使日志在下次读取时被判为损坏（此前每个用过工作流的会话都因此无法加载）。
+    // 更新与移除仍走 surface.replace：那时系统消息已存在，替换自身节点是合法的。
+    const additions = [...state.active].filter(([fileId]) => !present.has(fileId)).map(([, item]) => item.message)
+    if (additions.length > 0) decision.messages = [...(Array.isArray(decision.messages) ? decision.messages : []), ...additions]
     archive.recordApplications(sessionId, [...state.active.values()].map(({ fileId, revision, relativePath }) => ({ fileId, revision, relativePath, reason: '已提供给当前会话' })))
     return decision
   })

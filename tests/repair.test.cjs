@@ -73,7 +73,19 @@ test('real session surface replaces old revisions, stops and restores after comp
   const session = Session.create(SessionId('repair-session'))
   const agent = { session }
   const user = createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: '研究任务' }] })
-  const step = (messages = [user]) => preStep({ agent, messages, turn: 1, signal: new AbortController().signal }, async () => ({ kind: 'enter', messages }))
+  // 模拟引擎的真实顺序：agent/pre-step 返回后，引擎先提交系统消息（表面首节点），
+  // 再把 decision.messages 追加到表面。插件新增的工作流上下文正是经这条通道写入的，
+  // 它不能自己抢在系统消息之前，否则日志在下次读取时会被判为损坏。
+  const step = async (messages = [user]) => {
+    const decision = await preStep({ agent, messages, turn: 1, signal: new AbortController().signal }, async () => ({ kind: 'enter', messages }))
+    if (!session.snapshotEvents().some((event) => event.type === 'system/message')) {
+      session.append('system/message', { turn: 1, step: 1, message: { role: 'system', content: [{ type: 'text', text: '系统提示' }] } }, { surfaceOp: 'append' })
+    }
+    for (const message of Array.isArray(decision.messages) ? decision.messages : []) {
+      if (!messages.includes(message)) session.append('user/message', message, { surfaceOp: 'append' })
+    }
+    return decision
+  }
   await step()
   const firstSeq = session.seq
   assert.match(JSON.stringify(session.deriveMessages()), /FIRST_RULE/)
