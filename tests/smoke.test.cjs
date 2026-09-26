@@ -33,6 +33,7 @@ test('LexFlow-owned paths and package identities use the LexFlow name', () => {
   assert.deepEqual(manifest.packages.filter((plugin) => plugin.kind === 'lexflow-owned').map((plugin) => plugin.source), [
     'lexflow-dsh-adapter',
     'lexflow-codex-connect',
+    'lexflow-kimi-connect',
     'lexflow-ui-shell',
     'lexflow-ui-pages',
     'lexflow-archive',
@@ -119,6 +120,7 @@ test('LexFlow has one adapter, one Codex bridge, and the expected product plugin
   assert.deepEqual(manifest.packages.map((plugin) => plugin.target), [
     '@lexflow/dsh-adapter',
     '@lexflow/codex-connect',
+    '@lexflow/kimi-connect',
     '@lexflow/ui-shell',
     '@lexflow/ui-pages',
     '@lexflow/archive',

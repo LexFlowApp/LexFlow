@@ -13,6 +13,7 @@ export { SessionId } from '@deepseek-ai/dsh-session'
 export { AttachmentId } from '@deepseek-ai/dsh-attachment'
 export { TOOL_ABORTED, defineTool } from '@deepseek-ai/dsh-tools'
 export { WebError } from '@deepseek-ai/dsh-web'
+import { credentialKey } from '@deepseek-ai/dsh-credentials'
 export { default as schemastery } from '@deepseek-ai/schemastery'
 
 import { defineTool } from '@deepseek-ai/dsh-tools'
@@ -58,6 +59,89 @@ export function derefConfig(raw) {
     result[key] = value !== null && typeof value === 'object' && typeof value.get === 'function' ? value.get() : value
   }
   return result
+}
+
+/**
+ * 服务商登录桥：把底座 authorization／credentials 两个服务的用法收敛成产品插件可用的最小面。
+ *
+ * pi-ai 已为每个内置目录服务商（含 Kimi 套餐 kimi-coding）注册好授权流程，登录成功后
+ * 凭据写入共享凭证存储；模型目录从同一存储读取，因此凭证一旦落盘，对应模型自动出现在选择器里。
+ * 产品插件因此无需知道凭证键格式、通知载荷或流程细节，也无需自建凭据文件。
+ *
+ * @param ctx - 适配层宿主上下文（dsh.host.inject 已注入 authorization 与 credentials）。
+ * @returns 冻结的服务商登录面。
+ */
+function createProviderAuth(ctx) {
+  const sessions = new Map()
+  // pi-ai 的凭证记录作用域固定为 llm-pi-ai，记录键即「作用域/服务商」。
+  const keyFor = (providerId) => credentialKey('llm-pi-ai', providerId)
+  const sessionOf = (providerId) => sessions.get(providerId) ?? { inFlight: false, notice: null, error: null }
+  const idle = { available: false, configured: false, inFlight: false, methods: [], notice: null, error: null }
+  return Object.freeze({
+    /** 查询某个服务商的登录可用性与当前状态。 */
+    async status(providerId) {
+      const auth = service(ctx, 'authorization')
+      const credentials = service(ctx, 'credentials')
+      if (auth === undefined || credentials === undefined) return { ...idle }
+      const key = keyFor(providerId)
+      const flow = auth.describe(key)
+      if (flow === undefined) return { ...idle }
+      const record = await credentials.describeRecord(key)
+      const session = sessionOf(providerId)
+      return {
+        available: true,
+        methods: flow.methods,
+        inFlight: flow.inFlight === true,
+        configured: record?.configured === true,
+        notice: session.notice,
+        error: session.error,
+      }
+    },
+    /**
+     * 发起一次登录。设备码流程先取得验证网址与用户码（notify），再进入轮询；
+     * 因此这里立即返回，由调用方轮询 status() 取回验证信息与最终结果。
+     */
+    login(providerId, method) {
+      const auth = requiredService(ctx, 'authorization')
+      const existing = sessionOf(providerId)
+      if (existing.inFlight) return { started: false, notice: existing.notice }
+      const session = { inFlight: true, notice: null, error: null }
+      sessions.set(providerId, session)
+      void auth.begin({
+        key: keyFor(providerId),
+        method: method ?? 'oauth',
+        interaction: {
+          notify: (notice) => {
+            session.notice = { message: notice?.message ?? '', url: notice?.url ?? null, code: notice?.code ?? null }
+          },
+          // 设备码流程不向用户提问；若上游改为需要输入，这里明确拒绝，避免请求静默挂起。
+          prompt: () => Promise.reject(new Error('该登录方式无需额外输入。')),
+        },
+      }).then((outcome) => {
+        session.inFlight = false
+        session.notice = null
+        session.error = outcome?.status === 'authorized' || outcome?.status === 'cancelled' ? null : '登录未完成，请重试。'
+      }).catch((error) => {
+        session.inFlight = false
+        session.notice = null
+        session.error = error instanceof Error ? error.message : '登录失败。'
+      })
+      return { started: true, notice: null }
+    },
+    /** 撤销进行中的登录。 */
+    cancel(providerId) {
+      service(ctx, 'authorization')?.cancel(keyFor(providerId))
+      sessions.set(providerId, { inFlight: false, notice: null, error: null })
+      return { ok: true }
+    },
+    /** 退出登录：删除该服务商的凭据记录，模型随之下线。 */
+    async logout(providerId) {
+      const credentials = requiredService(ctx, 'credentials')
+      await credentials.deleteRecord(keyFor(providerId))
+      sessions.delete(providerId)
+      return { ok: true }
+    },
+  })
 }
 
 function createHostFace(ctx) {
@@ -183,6 +267,7 @@ export function apply(ctx) {
           getContextOrder: name => scope.systemPrompt.getContextOrder(name),
         })))
       },
+      providerAuth: createProviderAuth(ctx),
     }),
     runtime: createHostFace(ctx),
   })

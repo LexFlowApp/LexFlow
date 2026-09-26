@@ -2702,6 +2702,8 @@ window.__ModuleLoader__.load({
 		}
 		const GPT_SUBSCRIPTION_CONTRIBUTION = "models.gpt.subscription";
 		const GPT_SETTINGS_CONTRIBUTION = "models.gpt.settings";
+		/** Kimi 套餐登录界面由 @lexflow/kimi-connect 提供，经贡献位在此卡片内渲染。 */
+		const KIMI_SUBSCRIPTION_CONTRIBUTION = "models.kimi.subscription";
 		/**
 		* Render the Models section content column.
 		* @param props - slot-delivered injected dependencies.
@@ -2733,16 +2735,18 @@ window.__ModuleLoader__.load({
 					if (contributions === void 0) return () => {};
 					const stops = [
 						contributions.subscribe(GPT_SUBSCRIPTION_CONTRIBUTION, listener),
-						contributions.subscribe(GPT_SETTINGS_CONTRIBUTION, listener)
+						contributions.subscribe(GPT_SETTINGS_CONTRIBUTION, listener),
+						contributions.subscribe(KIMI_SUBSCRIPTION_CONTRIBUTION, listener)
 					];
 					return () => stops.forEach((stop) => stop());
 				},
-				() => (contributions?.revision(GPT_SETTINGS_CONTRIBUTION) ?? 0) + (contributions?.revision(GPT_SUBSCRIPTION_CONTRIBUTION) ?? 0),
+				() => (contributions?.revision(GPT_SETTINGS_CONTRIBUTION) ?? 0) + (contributions?.revision(GPT_SUBSCRIPTION_CONTRIBUTION) ?? 0) + (contributions?.revision(KIMI_SUBSCRIPTION_CONTRIBUTION) ?? 0),
 				() => 0
 			);
 			void contributionRevision;
 			const gptSubscriptionContributions = contributions?.list(GPT_SUBSCRIPTION_CONTRIBUTION) ?? [];
 			const gptSettingsContributions = contributions?.list(GPT_SETTINGS_CONTRIBUTION) ?? [];
+			const kimiSubscriptionContributions = contributions?.list(KIMI_SUBSCRIPTION_CONTRIBUTION) ?? [];
 			if (state.status === "idle") controller.load();
 			const [openCard, setOpenCard] = React.useState(null);
 			const [cardMode, setCardMode] = React.useState({ gpt: "api", kimi: "api" });
@@ -2864,7 +2868,7 @@ window.__ModuleLoader__.load({
 				children: label,
 				onClick: () => onChange()
 			});
-			const renderGptContributions = (entries, emptyText) => entries.length === 0 ? jsx("div", {
+			const renderContributions = (entries, emptyText) => entries.length === 0 ? jsx("div", {
 				className: "lexflowModelPlaceholder",
 				children: emptyText
 			}) : jsx("div", {
@@ -2892,12 +2896,12 @@ window.__ModuleLoader__.load({
 			const providers = [
 				{ key: "deepseek", title: "DeepSeek", status: statusOf(["deepseek-official", "deepseek"]), modes: [{ id: "api", label: "API 调用" }], render: () => editorFor(["deepseek-official", "deepseek"]) },
 				{ key: "gpt", title: "GPT", status: statusOf(["o​penai", "o​penai-codex"], "gpt"), modes: [{ id: "api", label: "API 调用" }, { id: "codex", label: "Codex 订阅" }, { id: "settings", label: "GPT设置" }], render: () => cardMode.gpt === "codex"
-					? renderGptContributions(gptSubscriptionContributions, "Codex 订阅功能当前未加载。")
+					? renderContributions(gptSubscriptionContributions, "Codex 订阅功能当前未加载。")
 					: cardMode.gpt === "settings"
-						? renderGptContributions(gptSettingsContributions, "GPT 设置当前未加载。")
+						? renderContributions(gptSettingsContributions, "GPT 设置当前未加载。")
 						: editorFor(["o​penai"]) },
 				{ key: "kimi", title: "Kimi", status: statusOf(["moonshotai-cn", "moonshotai", "kimi-coding"]), modes: [{ id: "api", label: "API 调用" }, { id: "subscription", label: "套餐" }], render: () => cardMode.kimi === "subscription"
-					? jsx("div", { className: "lexflowModelPlaceholder", children: "模型套餐接入功能加急制作中…" })
+					? renderContributions(kimiSubscriptionContributions, "Kimi 套餐登录界面当前未加载。")
 					: editorFor(["moonshotai-cn", "moonshotai"]) },
 				{ key: "glm", title: "GLM", status: statusOf(["zai-coding-cn", "zai"]), modes: [{ id: "api", label: "API 调用" }], render: () => editorsFor(["zai-coding-cn", "zai"]) },
 				...customProviders

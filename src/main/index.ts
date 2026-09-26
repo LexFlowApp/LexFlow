@@ -141,6 +141,9 @@ async function ensureLexFlowDshProfile(): Promise<void> {
         enableSearch: false
         enableImageTool: false
         enableImageGeneration: false
+    # Kimi 套餐登录入口：驱动模型层自带的 kimi-coding 授权流程，登录后套餐模型自动进入选择器。
+    - id: lexflow-kimi-connect
+      name: '@lexflow/kimi-connect'
 ${settingsEntries}`)
   const pluginManifest = await readLexFlowPluginManifest()
   for (const plugin of pluginManifest.packages) {

@@ -18,6 +18,14 @@
       "entrypoints": ["lib/bin.js", "lib/index.js", "lib/client.js", "lib/invariant.js", "lib/src-ByKP_wn9.js", "lib/model-catalog.js", "lib/codex-model-discovery.js"]
     },
     {
+      "source": "lexflow-kimi-connect",
+      "target": "@lexflow/kimi-connect",
+      "kind": "lexflow-owned",
+      "sourceDir": "src",
+      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
+      "entrypoints": ["lib/index.js", "lib/client.js"]
+    },
+    {
       "source": "lexflow-ui-shell",
       "target": "@lexflow/ui-shell",
       "kind": "lexflow-owned",

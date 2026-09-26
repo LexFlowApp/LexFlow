@@ -1,0 +1,27 @@
+{
+  "name": "@lexflow/kimi-connect",
+  "displayName": "Kimi Connect",
+  "description": "Kimi For Coding subscription sign-in for LexFlow, driving the model layer's built-in authorization flow.",
+  "version": "0.1.0-lexflow.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@lexflow/dsh-adapter"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@lexflow/dsh-adapter": "0.2.0",
+    "react": "^18.2.0"
+  }
+}
