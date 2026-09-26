@@ -8,6 +8,15 @@ window.__ModuleLoader__.load({
     const { jsx, jsxs } = require('react/jsx-runtime')
 
     const AUTH_BASE = '/plugins/lexflow-kimi/auth'
+    // 链接沿用 LexFlow 的主题强调色与界面字体：浏览器默认的蓝色加下划线在暖色界面里过于突兀。
+    const LINK_STYLE = {
+      color: 'var(--lexflow-dsw-alias-state-business-primary, inherit)',
+      fontFamily: 'inherit',
+      fontSize: 'inherit',
+      wordBreak: 'break-all',
+      textDecoration: 'underline',
+      textUnderlineOffset: '2px'
+    }
     /** 界面贡献位：与 GPT 的 models.gpt.subscription 同构，由工作流插件的模型页渲染。 */
     const CONTRIBUTION = 'models.kimi.subscription'
     /** 等待授权期间的轮询间隔。设备码在浏览器侧完成，应用侧只能轮询确认。 */
@@ -80,7 +89,7 @@ window.__ModuleLoader__.load({
       if (state.phase === 'awaiting' && state.notice) {
         return jsxs('div', { className: 'lexflowModelCodex', children: [
           jsx('p', { children: '请在浏览器中打开下面的网址并输入用户码完成授权。授权完成后本页会自动更新。' }),
-          state.notice.url ? jsxs('p', { children: ['验证网址：', jsx('a', { href: state.notice.url, target: '_blank', rel: 'noreferrer', children: state.notice.url })] }) : null,
+          state.notice.url ? jsxs('p', { children: ['验证网址：', jsx('a', { href: state.notice.url, target: '_blank', rel: 'noreferrer', style: LINK_STYLE, children: state.notice.url })] }) : null,
           state.notice.code ? jsx('p', { children: ['用户码：', jsx('strong', { children: state.notice.code })] }) : null,
           jsx('button', { type: 'button', className: 'lexflowModelSecondary', disabled: busy, onClick: () => { void act('cancel') }, children: busy ? '正在取消…' : '取消登录' })
         ] })
