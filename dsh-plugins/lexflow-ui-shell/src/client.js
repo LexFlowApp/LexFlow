@@ -224,7 +224,12 @@ window.__ModuleLoader__.load({
       '.lexflowModelCardHead { -webkit-appearance: none; appearance: none; border-radius: 13px; overflow: hidden; transform: none !important; }',
       '.lexflowModelCard:has(.lexflowModelCardBody) .lexflowModelCardHead { border-radius: 13px 13px 0 0; }',
       '.lexflowModelCardHead:active { background: var(--lexflow-dsw-alias-interactive-bg-hover) !important; transform: none !important; }',
-      '.lexflowModelCardHead:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--lexflow-dsw-alias-state-business-primary) 44%, transparent) !important; }'
+      '.lexflowModelCardHead:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--lexflow-dsw-alias-state-business-primary) 44%, transparent) !important; }',
+      // 对话区工具调用行的报错文字：底座的红色（state-error-primary）在 LexFlow 暖色界面里过于刺眼，
+      // 统一改为主题色。只覆盖工具行文本（errorSummary 类与 ioText[data-error]），
+      // 删除按钮、凭证红点等真正的错误指示保持红色不变。哈希类名前缀随构建变化，故用后缀匹配。
+      '[class*="errorSummary"] { color: var(--lexflow-dsw-alias-state-business-primary) !important; }',
+      '[class*="ioText"][data-error] { color: var(--lexflow-dsw-alias-state-business-primary) !important; }'
     ].join('\n')
     async function api(action, payload = {}) {
       const response = await fetch('/lexflow-api', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...payload }) })

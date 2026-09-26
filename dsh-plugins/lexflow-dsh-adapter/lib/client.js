@@ -660,10 +660,12 @@ window.__ModuleLoader__.load({
 		* the output is a function of (viewport, preferences) only, so recovery on
 		* re-widening is automatic. Preferences re-clamp here because they cross the
 		* store boundary and callers may still supply stale ranges.
-		* The geometry follows the 0.1.5 layout contract (`available = viewport - sidebar - 400`,
-		* right column 300..520 clamped to at most 70% of the viewport): the right track only
-		* opens when the center keeps its 400px minimum after the sidebar. Requiring a 640px
-		* center earlier made the right column resolve to 0 in ordinary windows.
+		* The center column concedes width progressively: with the sidebar open it
+		* keeps at least 400px on wide windows, but once that would zero the right
+		* track (half-screen windows) it steps down to a 300px floor so the right
+		* column stays resizable (down to 240px effective at tight viewports) until
+		* the viewport truly cannot fit both (< ~800px). The 70%-of-viewport ceiling
+		* still bounds the right track.
 		* @param viewport - available frame width in px.
 		* @param sidebar - sidebar width preference in px (0 = closed).
 		* @param rightbar - right column width preference in px (0 = closed).
@@ -671,8 +673,10 @@ window.__ModuleLoader__.load({
 		*/
 		function computeColumns(viewport, sidebar, rightbar) {
 			const s = sidebar === 0 ? 0 : clampWidth(sidebar, 240, 420);
-			const available = viewport - s - 400;
-			const d0 = rightbar === 0 || available < 300 ? 0 : Math.min(available, clampWidth(rightbar, 300, Math.round(viewport * 0.7)));
+			// 宽屏下中央列保 400px；挤不下时中央列让位到 300px，让右栏（最低 240px）仍可拖窄，
+			// 而不是在半屏窗口直接把右栏解算为 0（拖手柄消失，用户无法缩小）。
+			const tight = viewport - s - 300;
+			const d0 = rightbar === 0 || tight < 240 ? 0 : Math.min(tight, clampWidth(rightbar, 300, Math.round(viewport * 0.7)));
 			return {
 				sidebar: s,
 				center: Math.max(0, viewport - s - d0),
