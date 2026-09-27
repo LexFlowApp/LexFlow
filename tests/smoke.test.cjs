@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.5')
+  assert.equal(packageJson.version, '0.4.6')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -285,6 +285,21 @@ test('LexFlow workflow storage uses typed Markdown files and recoverable old dat
     assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).version, 2)
     const initialList = await request({ action: 'workflow.list' })
     assert.equal(initialList.nodes.some((node) => node.name === 'existing.md'), false)
+    // 老文件（索引里有编号、文件头没有）在索引加载时回填身份，且沿用原编号——
+    // 这样升级前已应用的对话不会因为这次改动而失配。
+    const legacyPath = path.join(knowledgeRoot, '工作流', '既有文件.md')
+    fs.writeFileSync(legacyPath, '---\ntype: workflow\n---\n\n旧文件。\n')
+    // 直接按索引的定位规则写入种子索引：知识库路径的 sha256 前 24 位为文件名。
+    // 插件按真实路径（macOS 上 /var 会解析为 /private/var）计算索引文件名，这里必须一致。
+    const legacyIndexPath = path.join(indexRoot, require('node:crypto').createHash('sha256').update(fs.realpathSync(knowledgeRoot)).digest('hex').slice(0, 24) + '.json')
+    fs.writeFileSync(legacyIndexPath, JSON.stringify({ version: 1, files: { '工作流/既有文件.md': { fileId: 'legacy-id-0001', name: '既有文件.md', type: 'workflow', relativePath: '工作流/既有文件.md', revision: '', searchTerms: [], description: '旧文件。', updatedAt: '', size: 0 } } }))
+    const backfilled = await request({ action: 'workflow.list' })
+    const legacyNode = backfilled.nodes.find((node) => node.name === '既有文件.md')
+    assert.equal(legacyNode.fileId, 'legacy-id-0001')
+    assert.match(fs.readFileSync(legacyPath, 'utf8'), /lexflow-id: legacy-id-0001/u)
+    // 该文件只为验证回填，清掉以免影响后续按原始文件集计算的断言。
+    fs.rmSync(legacyPath)
+    await request({ action: 'workflow.refresh' })
     // 声明即收录：工作流目录中带类型声明的 Markdown 自动进入索引，无需导入。
     fs.mkdirSync(path.join(knowledgeRoot, '工作流'), { recursive: true })
     fs.writeFileSync(path.join(knowledgeRoot, '工作流', '声明工作流.md'), '---\ntype: workflow\n---\n\n由外部写入并声明类型的文件。\n')
@@ -297,13 +312,45 @@ test('LexFlow workflow storage uses typed Markdown files and recoverable old dat
     assert.deepEqual(declaredList.unclassified, ['工作流/无声明.md'])
     const classified = await request({ action: 'workflow.classify', relativePath: '工作流/无声明.md', type: 'memory' })
     assert.equal(classified.type, 'memory')
-    assert.match(fs.readFileSync(path.join(knowledgeRoot, '工作流', '无声明.md'), 'utf8'), /^---\ntype: memory\n---/u)
+    assert.match(fs.readFileSync(path.join(knowledgeRoot, '工作流', '无声明.md'), 'utf8'), /^---\ntype: memory\nlexflow-id: [0-9a-f-]{36}\n---/u)
     const reclassified = await request({ action: 'workflow.list' })
     assert.deepEqual(reclassified.unclassified, [])
     assert.ok(reclassified.nodes.some((node) => node.name === '无声明.md' && node.type === 'memory'))
     await assert.rejects(() => request({ action: 'workflow.classify', relativePath: '工作流/声明工作流.md', type: 'memory' }), /已有类型声明/u)
     await assert.rejects(() => request({ action: 'workflow.classify', relativePath: '../outside.md', type: 'workflow' }), /路径不在 LexFlow 工作空间内/u)
-    assert.deepEqual(registeredTools.map((tool) => tool.name).sort(), ['lexflow_document_ocr', 'lexflow_document_read', 'lexflow_document_write', 'lexflow_knowledge_read', 'lexflow_knowledge_search'])
+    // 身份随文件走：在应用之外改名（访达改名、命令行 mv）后编号不变，
+    // 因此已应用该文件的对话不会因改名而失配。
+    const beforeRename = (await request({ action: 'workflow.list' })).nodes.find((node) => node.name === '声明工作流.md')
+    assert.equal(typeof beforeRename.fileId, 'string')
+    fs.renameSync(path.join(knowledgeRoot, '工作流', '声明工作流.md'), path.join(knowledgeRoot, '工作流', '声明工作流-改名.md'))
+    const afterRename = (await request({ action: 'workflow.refresh' })).nodes.find((node) => node.name === '声明工作流-改名.md')
+    assert.equal(afterRename.fileId, beforeRename.fileId)
+    assert.match(fs.readFileSync(path.join(knowledgeRoot, '工作流', '声明工作流-改名.md'), 'utf8'), new RegExp('lexflow-id: ' + beforeRename.fileId))
+    // 在访达里整份复制会带出同一个 lexflow-id：必须改发新号，避免两个文件互相顶替。
+    fs.copyFileSync(path.join(knowledgeRoot, '工作流', '声明工作流-改名.md'), path.join(knowledgeRoot, '工作流', '声明工作流-副本.md'))
+    const withCopy = await request({ action: 'workflow.refresh' })
+    const copy = withCopy.nodes.find((node) => node.name === '声明工作流-副本.md')
+    assert.notEqual(copy.fileId, beforeRename.fileId)
+    assert.match(fs.readFileSync(path.join(knowledgeRoot, '工作流', '声明工作流-副本.md'), 'utf8'), new RegExp('lexflow-id: ' + copy.fileId))
+    // 已应用清单落盘：换一个插件实例（模拟应用重启）仍能读回并可停止，
+    // 且停止不需要文件存在——先删掉文件再停止。
+    await request({ action: 'workflow.settings.set', relativePath: '工作流/声明工作流-改名.md', fileId: beforeRename.fileId, useMode: 'relevant' })
+    apiHandler = undefined
+    const restarted = await import(path.join(root, 'dsh-plugins', 'lexflow-archive', 'lib', 'index.js') + '?restart=1')
+    restarted.apply(ctx, { workspaceRoot, archiveRoot, draftsRoot, historyRoot, oldDataRoot, indexRoot, defaultKnowledgeBaseRoot: path.join(temporary, 'default'), knowledgeBaseStatePath: statePath, knowledgeBaseIndexRoot: indexRoot, userAgentPath: path.join(workspaceRoot, 'AGENTS.md') })
+    await archiveService.workflow.recordApplications('session-restart', [{ fileId: beforeRename.fileId, revision: 'rev-1', relativePath: '工作流/声明工作流-改名.md', reason: '已提供给当前会话' }])
+    // 副本先清掉，只留改名件；文件删除后停止仍应可用。
+    fs.rmSync(path.join(knowledgeRoot, '工作流', '声明工作流-副本.md'))
+    const restored = await archiveService.workflow.sessionState('session-restart')
+    assert.deepEqual(restored.applied.map((item) => item.fileId), [beforeRename.fileId])
+    fs.rmSync(path.join(knowledgeRoot, '工作流', '声明工作流-改名.md'))
+    const stoppedMissing = await archiveService.workflow.stop('session-restart', beforeRename.fileId)
+    assert.deepEqual(stoppedMissing.applied, [])
+    assert.ok(stoppedMissing.suppressed.includes(beforeRename.fileId))
+    // 复原现场，后续断言仍按原始文件集计算。
+    fs.writeFileSync(path.join(knowledgeRoot, '工作流', '声明工作流.md'), '---\ntype: workflow\nlexflow-id: ' + beforeRename.fileId + '\n---\n\n由外部写入并声明类型的文件。\n')
+    await request({ action: 'workflow.refresh' })
+    assert.deepEqual([...new Set(registeredTools.map((tool) => tool.name))].sort(), ['lexflow_document_ocr', 'lexflow_document_read', 'lexflow_document_write', 'lexflow_knowledge_read', 'lexflow_knowledge_search'])
     await request({ action: 'workflow.selectRoot', rootPath: knowledgeRoot })
     assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).version, 2)
     await request({ action: 'workflow.selectRoot', rootPath: secondKnowledgeRoot })
@@ -328,7 +375,7 @@ test('LexFlow workflow storage uses typed Markdown files and recoverable old dat
     assert.equal(duplicate.relativePath, '工作流/研究 1.md')
     const copied = await request({ action: 'workflow.copy', from: workflow.relativePath, to: workflow.relativePath })
     assert.equal(copied.relativePath, '工作流/研究 2.md')
-    assert.match(fs.readFileSync(path.join(knowledgeRoot, workflow.relativePath), 'utf8'), /^---\ntype: workflow\n---/u)
+    assert.match(fs.readFileSync(path.join(knowledgeRoot, workflow.relativePath), 'utf8'), /^---\ntype: workflow\nlexflow-id: [0-9a-f-]{36}\n---/u)
     const indexFile = fs.readdirSync(indexRoot).find((name) => name.endsWith('.json'))
     const indexed = JSON.parse(fs.readFileSync(path.join(indexRoot, indexFile), 'utf8'))
     assert.deepEqual(Object.keys(indexed.files).sort(), ['工作流/声明工作流.md', '工作流/声明记忆.md', '工作流/无声明.md', '工作流/研究 1.md', '工作流/研究 2.md', '工作流/研究.md'])

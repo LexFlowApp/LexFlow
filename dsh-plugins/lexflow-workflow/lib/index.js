@@ -63,7 +63,9 @@ export function apply(ctx) {
       for (const candidate of selected) {
         const id = candidate.fileId ?? candidate.item?.fileId
         if (!id || (!candidate.force && suppressed.has(id))) continue
-        if (candidate.invalid) throw new Error('已应用的工作流失效，请在已应用工作流中停止该文件后重试。')
+        // 文件已不在知识库（删除、改名、换库）时不再报错中断：应用的本质是注入上下文，
+        // 已注入的正文留在对话里继续有效，本文件只是不再参与后续同步更新。
+        if (candidate.invalid) continue
         const previous = effective.get(id)
         if (previous?.revision === candidate.revision) continue
         const value = candidate.content && candidate.item ? candidate : await archive.read(candidate, sessionId)
@@ -93,7 +95,8 @@ export function apply(ctx) {
     // 更新与移除仍走 surface.replace：那时系统消息已存在，替换自身节点是合法的。
     const additions = [...state.active].filter(([fileId]) => !present.has(fileId)).map(([, item]) => item.message)
     if (additions.length > 0) decision.messages = [...(Array.isArray(decision.messages) ? decision.messages : []), ...additions]
-    archive.recordApplications(sessionId, [...state.active.values()].map(({ fileId, revision, relativePath }) => ({ fileId, revision, relativePath, reason: '已提供给当前会话' })))
+    // 清单落盘失败不应影响本轮回答：await 但仍吞掉异常（内部已记录）。
+    await archive.recordApplications(sessionId, [...state.active.values()].map(({ fileId, revision, relativePath }) => ({ fileId, revision, relativePath, reason: '已提供给当前会话' }))).catch(() => {})
     return decision
   })
 }

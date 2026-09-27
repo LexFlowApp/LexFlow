@@ -68,7 +68,7 @@ test('real session surface replaces old revisions, stops and restores after comp
   const plugin = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
   let preStep, revision = 'v1', body = 'FIRST_RULE', suppressed = []
   let reads = 0
-  const service = { consumeActivations: () => [], bindSession: async () => {}, sessionState: async () => ({ suppressed }), listSettings: async () => [{ fileId: 'f1', relativePath: '工作流/研究.md', revision, useMode: 'session_start' }], discover: async () => ({ candidates: [], ambiguous: false }), read: async () => { reads++; return { item: { fileId: 'f1', relativePath: '工作流/研究.md' }, revision, content: body } }, recordApplications() {} }
+  const service = { consumeActivations: () => [], bindSession: async () => {}, sessionState: async () => ({ suppressed }), listSettings: async () => [{ fileId: 'f1', relativePath: '工作流/研究.md', revision, useMode: 'session_start' }], discover: async () => ({ candidates: [], ambiguous: false }), read: async () => { reads++; return { item: { fileId: 'f1', relativePath: '工作流/研究.md' }, revision, content: body } }, recordApplications: async () => {} }
   plugin.apply({ get: (name) => name === 'lexflowArchive' ? { workflow: service } : { host: { defineSettingsSchema: (v) => v, defineEnumSchema: (_v, d) => d, registerSettings() {} } }, inject: (_names, callback) => callback(), effect: (fn) => fn(), on: (_name, callback) => { preStep = callback; return () => {} } })
   const session = Session.create(SessionId('repair-session'))
   const agent = { session }
@@ -138,7 +138,8 @@ test('migration preserves identity, modes and source bytes; both storage APIs en
   start()
   const workflow = await request('workflow.list')
   assert.deepEqual(workflow.nodes.map((node) => node.name), ['AGENT.md', '研究.md'])
-  assert.equal(fs.readFileSync(path.join(knowledge, '工作流/研究.md'), 'utf8'), content)
+  // 迁移把既有编号写进文件头（身份随文件走，改名后不再失配）；正文其余部分原样保留。
+  assert.equal(fs.readFileSync(path.join(knowledge, '工作流/研究.md'), 'utf8'), content.replace('---\ntype: workflow\n---', '---\ntype: workflow\nlexflow-id: stable-id\n---'))
   assert.equal(workflow.nodes[1].fileId, 'stable-id')
   assert.equal(workflow.nodes[1].useMode, 'session_start')
   assert.equal(fs.existsSync(path.join(knowledge, '未导入.md')), true)

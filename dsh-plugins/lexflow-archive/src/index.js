@@ -75,6 +75,35 @@ function typeOf(content) {
   return match?.[1] ?? null
 }
 
+// 文件身份写在文件头（与 type 并列），而不是只记在按路径组织的外部索引里。
+// 索引按路径记账，用户在访达改名/移动后路径变化即认作新文件、身份丢失，
+// 已应用该文件的对话随即失配；把身份挂在文件上，改名、移动、跨机搬运都随文件走。
+// 新号一律是 UUID；此处放宽为一般令牌，使历史索引里的既有编号也能被识别——
+// 若只认 UUID，这类编号每次刷新都会被重写，陷入反复改写的循环。
+const ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/u
+
+function idOf(content) {
+  const match = frontmatterOf(content)?.text.match(/^lexflow-id:\s*(\S+)\s*$/mu)
+  return match && ID_PATTERN.test(match[1]) ? match[1] : null
+}
+
+function withId(content, id) {
+  const source = String(content ?? '')
+  if (idOf(source) === id) return source
+  const frontmatter = frontmatterOf(source)
+  const line = 'lexflow-id: ' + id
+  if (!frontmatter) return '---\n' + line + '\n---\n\n' + source
+  const lines = frontmatter.text.split(/\r?\n/u)
+  let replaced = false
+  const next = lines.map((item) => {
+    if (/^lexflow-id:\s*/u.test(item)) { replaced = true; return line }
+    return item
+  })
+  if (!replaced) next.push(line)
+  const closing = '---' + (frontmatter.hasClosingNewline ? frontmatter.newline : '')
+  return (source.startsWith('\uFEFF') ? '\uFEFF' : '') + '---' + frontmatter.newline + next.join(frontmatter.newline) + frontmatter.newline + closing + frontmatter.body
+}
+
 function withType(content, type) {
   if (!FILE_TYPES.has(type)) throw new Error('文件类型必须是工作流或长期记忆。')
   const source = String(content ?? '')
@@ -205,16 +234,31 @@ async function writeKnowledgeIndex(indexRoot, root, index) {
   await atomicWrite(filename, JSON.stringify({ version: KNOWLEDGE_INDEX_VERSION, files: index.files }, null, 2) + '\n')
 }
 
-async function knowledgeIndexEntry(root, relativePath, signal, previous) {
+async function knowledgeIndexEntry(root, relativePath, signal, previous, options = {}) {
   const current = pathFromRoot(root, relativePath)
   if (!current.filename.toLowerCase().endsWith('.md')) throw new Error('这里只管理 Markdown 文件。')
-  const info = await stat(current.filename)
-  if (!info.isFile()) throw new Error('知识库文件无效。')
-  const content = await readFile(current.filename, { encoding: 'utf8', signal })
+  if (!(await stat(current.filename)).isFile()) throw new Error('知识库文件无效。')
+  let content = await readFile(current.filename, { encoding: 'utf8', signal })
   const type = typeOf(content)
   if (!type) throw new Error('知识库文件缺少工作流或长期记忆类型。')
+  // 身份以文件内的 lexflow-id 为准：改名、移动、跨机搬运都随文件走，
+  // 因此已应用该文件的对话在文件改名后仍能对上号（修复"改名即失效"）。
+  // renewId 供复制使用，复制品必须换发新号；taken 是其他条目已占用的编号，
+  // 在访达里整份复制会带出同一个 lexflow-id，此时改发新号写回，避免两个文件互相顶替。
+  const declared = idOf(content)
+  const taken = options.taken ?? null
+  const usable = (value) => typeof value === 'string' && value.length > 0 && taken?.has(value) !== true
+  const fileId = options.renewId
+    ? randomUUID()
+    : (usable(declared) ? declared : (usable(previous?.fileId) ? previous.fileId : randomUUID()))
+  if (fileId !== declared) {
+    if (options.historyRoot) await historyCopy(options.historyRoot, 'workflow-identity', current.relativePath, current.filename)
+    await atomicWrite(current.filename, withId(content, fileId))
+    content = await readFile(current.filename, { encoding: 'utf8', signal })
+  }
+  const info = await stat(current.filename)
   return {
-    fileId: previous?.fileId ?? randomUUID(),
+    fileId,
     relativePath: current.relativePath,
     name: path.basename(current.filename),
     type,
@@ -230,15 +274,26 @@ async function knowledgeIndexEntry(root, relativePath, signal, previous) {
 // 供工作流页面提示用户归类；不进入索引，也不参与任何读取或检索。
 const unclassifiedWorkflowFiles = new Map()
 
-async function refreshKnowledgeIndex(indexRoot, root, force = false) {
+async function refreshKnowledgeIndex(indexRoot, root, force = false, options = {}) {
   const index = await readKnowledgeIndex(indexRoot, root)
   let changed = false
+  const taken = new Set(Object.values(index.files).map((entry) => entry.fileId))
   for (const [relativePath, existing] of Object.entries(index.files)) {
     try {
       const current = pathFromRoot(root, relativePath)
       const info = await stat(current.filename)
-      if (!force && info.isFile() && existing.updatedAt === info.mtime.toISOString() && existing.size === info.size && existing.revision && existing.status === undefined) continue
-      const next = await knowledgeIndexEntry(root, relativePath, undefined, existing)
+      // 文件未变化时跳过重读；但尚未把身份写进文件头的条目必须回填一次，
+      // 否则"编号随文件走"只在新写入的文件上成立，既有文件仍会在改名后失配。
+      let backfill = false
+      if (info.isFile() && !existing.status) {
+        try { backfill = idOf(await readFile(current.filename, 'utf8')) === null } catch { backfill = false }
+      }
+      if (!force && !backfill && info.isFile() && existing.updatedAt === info.mtime.toISOString() && existing.size === info.size && existing.revision && existing.status === undefined) continue
+      // 补写身份时不把自己的编号视为占用；其余条目占用则改发新号。
+      const scope = new Set(taken)
+      scope.delete(existing.fileId)
+      const next = await knowledgeIndexEntry(root, relativePath, undefined, existing, { historyRoot: options.historyRoot, taken: scope })
+      taken.add(next.fileId)
       if (JSON.stringify(next) !== JSON.stringify(index.files[relativePath])) {
         index.files[relativePath] = next
         changed = true
@@ -272,7 +327,7 @@ async function declaredWorkflowType(filename) {
 
 const declaredScanCache = new Map()
 
-async function scanDeclaredWorkflowFiles(root, index, force = false) {
+async function scanDeclaredWorkflowFiles(root, index, force = false, options = {}) {
   const cached = force ? undefined : declaredScanCache.get(root)
   const known = cached?.known ?? new Map()
   const additions = []
@@ -300,9 +355,13 @@ async function scanDeclaredWorkflowFiles(root, index, force = false) {
     }
   }
   await visit(inside(root, WORKFLOW_FOLDER_NAME))
+  // 已登记的编号先入集合：在访达里整份复制会带出同一个 lexflow-id，
+  // 收录新文件时据此改发新号，避免两个文件共用一个身份。
+  const taken = new Set(Object.values(index.files).map((entry) => entry.fileId))
   for (const relativePath of additions) {
     try {
-      const entry = await knowledgeIndexEntry(root, relativePath)
+      const entry = await knowledgeIndexEntry(root, relativePath, undefined, undefined, { taken, historyRoot: options.historyRoot })
+      taken.add(entry.fileId)
       index.files[entry.relativePath] = entry
     } catch {}
   }
@@ -582,7 +641,26 @@ function normalizeWorkflowSettings(value) {
       sessions[sessionId] = { rootPath: rawSession.rootPath, suppressed: Array.isArray(rawSession.suppressed) ? rawSession.suppressed.filter((item) => typeof item === 'string') : [] }
     }
   }
-  return { version: WORKFLOW_SETTINGS_VERSION, roots, sessions }
+  // applications：每个会话已应用的工作流清单，落盘以便重启后仍可停止。
+  const applications = {}
+  if (value && typeof value === 'object' && value.applications && typeof value.applications === 'object') {
+    for (const [rootId, rawBucket] of Object.entries(value.applications)) {
+      if (!rawBucket || typeof rawBucket !== 'object') continue
+      const bucket = {}
+      for (const [sessionId, rawList] of Object.entries(rawBucket)) {
+        if (!Array.isArray(rawList)) continue
+        const list = rawList.filter((item) => item && typeof item.fileId === 'string').map((item) => ({
+          fileId: item.fileId,
+          relativePath: String(item.relativePath ?? ''),
+          revision: String(item.revision ?? ''),
+          reason: String(item.reason ?? '相关任务'),
+        }))
+        if (list.length > 0) bucket[sessionId] = list
+      }
+      if (Object.keys(bucket).length > 0) applications[rootId] = bucket
+    }
+  }
+  return { version: WORKFLOW_SETTINGS_VERSION, roots, sessions, applications }
 }
 
 async function readWorkflowSettings(filename) {
@@ -590,7 +668,7 @@ async function readWorkflowSettings(filename) {
 }
 
 async function writeWorkflowSettings(filename, settings) {
-  await atomicWrite(filename, JSON.stringify({ version: WORKFLOW_SETTINGS_VERSION, roots: settings.roots, sessions: settings.sessions }, null, 2) + '\n')
+  await atomicWrite(filename, JSON.stringify({ version: WORKFLOW_SETTINGS_VERSION, roots: settings.roots, sessions: settings.sessions, applications: settings.applications ?? {} }, null, 2) + '\n')
 }
 
 function defaultWorkflowContent() {
@@ -1119,8 +1197,8 @@ export function apply(ctx, config = {}) {
   const loadKnowledgeIndex = async (root, force = false) => {
     await scopeDirectory(root, WORKFLOW_FOLDER_NAME)
     await ensureWorkflowDirectory(root)
-    const index = await refreshKnowledgeIndex(knowledgeBaseIndexRoot, root, force)
-    const scanned = await scanDeclaredWorkflowFiles(root, index, force)
+    const index = await refreshKnowledgeIndex(knowledgeBaseIndexRoot, root, force, { historyRoot })
+    const scanned = await scanDeclaredWorkflowFiles(root, index, force, { historyRoot })
     unclassifiedWorkflowFiles.set(root, scanned.unclassified)
     if (scanned.added.length > 0) {
       await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, index)
@@ -1196,7 +1274,8 @@ export function apply(ctx, config = {}) {
   }
   const registerKnowledgeFile = async (root, relativePath, useMode = NEW_USE_MODE) => {
     const index = await loadKnowledgeIndex(root)
-    const entry = await knowledgeIndexEntry(root, relativePath, undefined, index.files[relativePath])
+    const taken = new Set(Object.values(index.files).map((item) => item.fileId))
+    const entry = await knowledgeIndexEntry(root, relativePath, undefined, index.files[relativePath], { historyRoot, taken })
     index.files[entry.relativePath] = entry
     await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, index)
     const bucket = await syncWorkflowSettings(root, index)
@@ -1211,9 +1290,11 @@ export function apply(ctx, config = {}) {
     const info = await stat(current.filename)
     const files = info.isDirectory() ? await markdownFiles(current.filename) : [current.filename]
     const index = await loadKnowledgeIndex(root)
+    const taken = new Set(Object.values(index.files).map((item) => item.fileId))
     for (const filename of files) {
       try {
-        const entry = await knowledgeIndexEntry(root, path.relative(root, filename))
+        const entry = await knowledgeIndexEntry(root, path.relative(root, filename), undefined, undefined, { historyRoot, taken })
+        taken.add(entry.fileId)
         index.files[entry.relativePath] = entry
       } catch {}
     }
@@ -1543,7 +1624,9 @@ export function apply(ctx, config = {}) {
     pendingWorkflowActivations.delete(sessionId)
     return pending
   }
-  const recordWorkflowApplications = (sessionId, applications) => {
+  // 已应用清单随会话一起落盘（原来只存在进程内存里）：重启后进程内存清空，
+  // 面板随之整个隐藏，用户想停止应用却找不到入口。落盘后重启仍可看到并停止。
+  const recordWorkflowApplications = async (sessionId, applications) => {
     if (typeof sessionId !== 'string' || !Array.isArray(applications)) return
     const current = new Map()
     for (const item of applications) {
@@ -1557,21 +1640,47 @@ export function apply(ctx, config = {}) {
       })
     }
     sessionApplications.set(sessionId, current)
+    try { await writeSessionApplications(sessionId, current) }
+    catch (error) { (ctx.logger ?? console).warn?.('lexflow-archive: 未能写入已应用工作流清单', error) }
+  }
+  const writeSessionApplications = async (sessionId, current) => {
+    const settings = await readWorkflowSettings(workflowSettingsPath)
+    const key = rootId(await rootForSession(sessionId))
+    const bucket = settings.applications?.[key] ?? {}
+    bucket[sessionId] = [...current.values()]
+    settings.applications = { ...(settings.applications ?? {}), [key]: bucket }
+    await writeWorkflowSettings(workflowSettingsPath, settings)
+  }
+  const readSessionApplications = async (sessionId) => {
+    const settings = await readWorkflowSettings(workflowSettingsPath)
+    const key = rootId(await rootForSession(sessionId))
+    const list = settings.applications?.[key]?.[sessionId] ?? []
+    return new Map(list.filter((item) => typeof item?.fileId === 'string').map((item) => [item.fileId, { ...item, status: 'applied' }]))
   }
   const sessionWorkflowState = async (sessionId) => {
     const root = await rootForSession(sessionId)
     const settings = await readWorkflowSettings(workflowSettingsPath)
     const state = settings.sessions[sessionId] ?? { rootPath: root, suppressed: [] }
-    return { rootName: path.basename(root), suppressed: [...new Set(state.suppressed ?? [])], applied: [...(sessionApplications.get(sessionId)?.values() ?? [])], choice: choices.get(sessionId)?.public ?? null }
+    const applied = sessionApplications.get(sessionId) ?? await readSessionApplications(sessionId)
+    // 标注"文件已不在知识库"供界面显示；这既不影响停止，也不影响对话中已注入的正文。
+    let known = null
+    try { known = await loadKnowledgeIndex(root) } catch {}
+    const values = [...applied.values()].map((item) => ({ ...item, detached: known ? !Object.values(known.files).some((entry) => entry.fileId === item.fileId) : false }))
+    return { rootName: path.basename(root), suppressed: [...new Set(state.suppressed ?? [])], applied: values, choice: choices.get(sessionId)?.public ?? null }
   }
   const stopWorkflow = async (sessionId, fileId) => {
     if (typeof sessionId !== 'string' || typeof fileId !== 'string' || fileId.length === 0) throw new Error('会话或工作流标识无效。')
     const root = await rootForSession(sessionId)
-    const index = await loadKnowledgeIndex(root)
-    // A missing file can still be stopped in an existing conversation.
+    // 停止只匹配对话消息里自带的编号，不查文件：文件被删除或改名后仍可停止。
     const settings = await readWorkflowSettings(workflowSettingsPath)
     const current = settings.sessions[sessionId] ?? { rootPath: root, suppressed: [] }
     settings.sessions[sessionId] = { rootPath: root, suppressed: [...new Set([...(current.suppressed ?? []), fileId])] }
+    const key = rootId(root)
+    const bucket = settings.applications?.[key] ?? {}
+    const remaining = (bucket[sessionId] ?? []).filter((item) => item?.fileId !== fileId)
+    if (remaining.length > 0) bucket[sessionId] = remaining
+    else delete bucket[sessionId]
+    settings.applications = { ...(settings.applications ?? {}), [key]: bucket }
     await writeWorkflowSettings(workflowSettingsPath, settings)
     sessionApplications.get(sessionId)?.delete(fileId)
     return sessionWorkflowState(sessionId)
@@ -1756,7 +1865,7 @@ export function apply(ctx, config = {}) {
           const copiedIndex = remapKnowledgeIndex(index, relativePath, result.relativePath, true)
           for (const copiedPath of Object.keys(copiedIndex.files)) {
             if (index.files[copiedPath]) continue
-            copiedIndex.files[copiedPath] = await knowledgeIndexEntry(root, copiedPath)
+            copiedIndex.files[copiedPath] = await knowledgeIndexEntry(root, copiedPath, undefined, undefined, { renewId: true, historyRoot })
           }
           await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, copiedIndex)
           await syncWorkflowSettings(root, copiedIndex)
@@ -1895,7 +2004,7 @@ export function apply(ctx, config = {}) {
       const copiedIndex = remapKnowledgeIndex(index, source.relativePath, result.relativePath, true)
       for (const relativePath of Object.keys(copiedIndex.files)) {
         if (index.files[relativePath]) continue
-        copiedIndex.files[relativePath] = await knowledgeIndexEntry(root, relativePath)
+        copiedIndex.files[relativePath] = await knowledgeIndexEntry(root, relativePath, undefined, undefined, { renewId: true, historyRoot })
       }
       await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, copiedIndex)
       await syncWorkflowSettings(root, copiedIndex)
