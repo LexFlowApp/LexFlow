@@ -363,6 +363,13 @@ window.__ModuleLoader__.load({
       '[class*="EvIC1a_column"] { --dsh-chat-flow-gap: 12px !important; }',
       // 对话内容与输入区之间留出呼吸空间，避免正文贴着输入框。
       '[class*="EvIC1a_root"] { padding-bottom: 12px !important; }',
+      // 工具行（ToolRow）等组件里有一类"仅供朗读"的隐藏元素：position: absolute、1×1、clip 到不可见，
+      // 但底座 CSS 不给 top/left，其静态位置在个别情形下会落到会话内容末尾之外——运行中的工具调用、
+      // 且展开其详情时即会触发——从而撑大滚动容器的可滚动区域。表现为输入框下方多出一段可以滚下去
+      // 的空白，像"纸的底部下面还有纸"（用户 2026-09-27 反馈；监视器已记录到输入框因此上移 107px）。
+      // 实测：把这样一个元素推到内容末尾之下 800px，滚动高度 +801；钉到包含块左上角后回到基线。
+      // 这些元素已被 clip 裁成 1×1，位置对视觉与朗读均无影响，故一律钉住。
+      '[class*="EvIC1a_column"] [class*="visuallyHidden"] { top: 0 !important; left: 0 !important; }',
       '[class*="EvIC1a_scroll"] { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 30px !important; }',
       // 输入区形态（2026-09-27 三次定稿）：
       //   信息带合并为一行、全部左起：上下文 → 权限(仅图标) → 会话统计 → token 用量；模型仍在最右；

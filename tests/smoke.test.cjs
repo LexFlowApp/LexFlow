@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.9')
+  assert.equal(packageJson.version, '0.5.0')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -485,6 +485,8 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   assert.match(adapter, /wSkVaW_composerSeat"\] \{ background: var\(--dsw-alias-bg-base\) !important/u)
   assert.match(adapter, /wSkVaW_composerSeat"\]::before \{[^}]*top: -36px/u)
   assert.doesNotMatch(adapter, /uV2eYG_hero"\]\)::before/u)
+  // 朗读用隐藏元素必须钉住：它们的静态位置会落到内容末尾之外，撑出幽灵滚动区。
+  assert.match(adapter, /EvIC1a_column"\] \[class\*="visuallyHidden"\] \{ top: 0 !important; left: 0 !important; \}/u)
   // 发送键与停止键都定位到输入框内右侧，按类名而非文案；两者同屏时停止键左移让位。
   assert.match(adapter, /uV2eYG_primary"\] \{ bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute/u)
   assert.match(adapter, /uV2eYG_trailing"\] button\[class\*="uV2eYG_primary"\]:not\(:last-child\) \{ right: 42px/u)
