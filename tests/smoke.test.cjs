@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.6')
+  assert.equal(packageJson.version, '0.4.7')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -447,6 +447,52 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   // 弹窗打开时，所有覆盖层浮点元素都必须处置：返回箭头／侧栏开关、拖拽手柄、
   // 以及运行态 Flowing 条。漏一个就会出现"浮层压着弹窗遮罩"的观感问题。
   assert.match(adapter, /\[data-lexflow-modal-open="true"\][^\n]*l_V-RG_root[^\n]*display: none/u)
+  // 运行态 Flowing 条留在对话流内（不再 position: fixed）：它本身就是流里的节点，
+  // 定位一旦依赖输入区的几何，输入区改版就会错位（本次即因此重做）。
+  assert.match(adapter, /\[data-chat-flow-kind="turn-process"\]\[data-lexflow-flowing-order="true"\] \{ order: 99/u)
+  const flowingRule = adapter.match(/\[class\*="l_V-RG_root"\]\[data-lexflow-flowing="true"\] \{[^}]*\}/u)
+  assert.ok(flowingRule, '运行态 Flowing 条必须有样式规则')
+  assert.doesNotMatch(flowingRule[0], /position: fixed/u)
+  assert.doesNotMatch(adapter, /--lexflow-flowing-(left|bottom)/u)
+  // 输入区改版：卡片只承载纯输入框（外观下移到输入框本身），设置行落到卡片外；
+  // 纯输入框高度降低；对话框高度上限为界面高度的三分之一。
+  assert.match(adapter, /:not\(\[class\*="uV2eYG_hero"\]\) \[class\*="uV2eYG_card"\] \{ background: transparent/u)
+  assert.match(adapter, /max-height: min\(var\(--dsh-composer-text-max-height, 336px\), 33vh\)/u)
+  assert.match(adapter, /uV2eYG_input"\] \{ min-height: 30px/u)
+  // 统计行并入信息带（dock 提到 card 之前），发送键入输入框（仅"发送消息"，停止键留行内）。
+  assert.match(adapter, /uV2eYG_dock"\] \{[^}]*z-index: 2/u)
+  assert.match(adapter, /uV2eYG_card"\] \{[^}]*order: 2/u)
+  // 信息带三次定稿：合并为一行、全部左起（上下文 → 权限 → 统计 → 用量），模型仍在最右。
+  // 加号（底座的"添加文件或调用指令"冗余入口）删除；dock 抽出文档流按输入框对齐并归零高度，
+  // 两个子元素绝对定位到 row 那条线上。
+  assert.match(adapter, /uV2eYG_add"\] \{ display: none/u)
+  assert.match(adapter, /uV2eYG_tools"\] \{ padding-left: 34px/u)
+  assert.match(adapter, /uV2eYG_dock"\] \{ height: 0/u)
+  assert.match(adapter, /uV2eYG_dock"\] \[class\*="JObwrW_root"\] \{ left: 8px/u)
+  assert.match(adapter, /uV2eYG_dock"\] \[data-composer-stats\] \{ left: 82px/u)
+  // 信息带四个控件各自加毛玻璃，避免会话正文滚到底时糊在按钮上；不设背景色以保留 hover 底色。
+  assert.match(adapter, /\[class~="bOPqQW_pill"\] \{ -webkit-backdrop-filter: blur\(6px\) !important; backdrop-filter: blur\(6px\) !important; border-radius: 999px !important; background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) 60%/u)
+  // 底色选择器必须用精确词匹配，否则子串会命中按钮内部的分段元素，各段各长出一层底色。
+  assert.doesNotMatch(adapter, /\[class\*="_7KE1Ra_trigger"\] \{[^}]*background-color/u)
+  // 注意：控件上的 backdrop-filter 在本应用里不生效（底座给 wSkVaW_scrollBody 加了 mask，
+  // 遮断了下层正文进入其背景采样范围的通路，实测 blur 0px 与 20px 像素零差异）。
+  // 该属性保留仅为底座将来放开时能自动接手，真正起遮蔽作用的是底色，勿据此认为有模糊效果。
+  assert.doesNotMatch(adapter, /data-lexflow-composer-frost/u)
+  // 正文与信息带的重叠，靠把底座 composerSeat 的渐隐上移到信息带上方解决。
+  assert.match(adapter, /wSkVaW_composerSeat"\] \{ background: var\(--dsw-alias-bg-base\) !important/u)
+  assert.match(adapter, /wSkVaW_composerSeat"\]::before \{[^}]*top: -36px/u)
+  assert.doesNotMatch(adapter, /uV2eYG_hero"\]\)::before/u)
+  assert.match(adapter, /aria-label="发送消息"\] \{[^}]*position: absolute/u)
+  assert.doesNotMatch(adapter, /uV2eYG_primary"\] \{[^}]*position: absolute/u)
+  // "性能与用量"显示策略（定稿）：简洁档彻底隐藏（非按钮的胶囊组），详细档仅图标；
+  // 不再另设"关闭"开关行（同 id 接管会让 chat 激活失败，实测 2026-09-27；独立开关行已废弃）。
+  assert.match(adapter, /data-composer-stats\]:not\(:has\(button\)\) \{ display: none/u)
+  assert.match(adapter, /bOPqQW_label"\] \{ display: none/u)
+  assert.doesNotMatch(shell, /lexflow\.showStats/u)
+  assert.doesNotMatch(shell, /id: 'performance-usage'/u)
+  // 权限触发器仅图标；上下文计量器仅图标。
+  assert.match(adapter, /iWlSmW_triggerLabel"\], \[class\*="uV2eYG_root"\]:not\(\[class\*="uV2eYG_hero"\]\) \[class\*="iWlSmW_trigger"\] \[class\*="iWlSmW_chevron"\] \{ display: none/u)
+  assert.match(adapter, /JObwrW_trigger"\] > svg \+ span \{ display: none/u)
 })
 
 test('LexFlow Codex bridge retains the complete capability surface', () => {
@@ -560,10 +606,10 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(adapter, /writing-mode: horizontal-tb !important/)
   assert.match(adapter, /dsh-content-font-size/)
   assert.match(adapter, /contributionRegistry/)
-  // 紧凑密度层（0.1.5 现行锚点）：行高 22px、流间距 12px、输入卡片圆角 14px、
+  // 紧凑密度层（0.1.5 现行锚点）：行高 22px、流间距 12px、输入框圆角 14px、
   // 气泡圆角 14px。失效的 0.1.4 类名不得再出现在适配层。
   assert.match(adapter, /hWmORq_root.*line-height: calc\(22px/)
-  assert.match(adapter, /uV2eYG_card.*border-radius: 14px/)
+  assert.match(adapter, /uV2eYG_scroll"\] \{ background: var\(--dsw-specific-input-major\) !important; border-radius: 14px/)
   assert.match(adapter, /div\[class\*="bubble"\] \{ border-radius: 14px/)
   assert.match(adapter, /markdown_kcgor/)
   // 列宽调整器回归：EvIC1a_column 的 max-width 由 --dsh-chat-content-width 驱动，

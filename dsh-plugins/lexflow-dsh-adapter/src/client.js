@@ -361,19 +361,87 @@ window.__ModuleLoader__.load({
       // 此规则不得设置 max-width／min-width：EvIC1a_column 的 max-width 由
       // --dsh-chat-content-width 驱动，是原生列宽调整器的目标属性，覆盖它会让调整器失效。
       '[class*="EvIC1a_column"] { --dsh-chat-flow-gap: 12px !important; }',
-      // 下内距 12→32px：对话内容与输入区之间留出呼吸空间，避免正文贴着输入框。
-      // 对话区容器底部留出 Flowing 条的预留带：预留带在滚动容器之外，
-      // 消息被裁剪在滚动容器内，因此运行态指示永远压不到消息（真不重叠，而非遮罩掩盖）。
-      '[class*="EvIC1a_root"] { padding-bottom: 26px !important; }',
+      // 对话内容与输入区之间留出呼吸空间，避免正文贴着输入框。
+      '[class*="EvIC1a_root"] { padding-bottom: 12px !important; }',
       '[class*="EvIC1a_scroll"] { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 30px !important; }',
-      // 输入区紧凑：卡片圆角 22→14px、顶部内距 8→6px、行间距 12→10px；
-      // 权限与模型触发器 13→12px（随字号设置联动）；统计行左右内距 32→28px。
-      '[class*="uV2eYG_card"] { border-radius: 14px !important; gap: 10px !important; padding-top: 6px !important; }',
+      // 输入区形态（2026-09-27 三次定稿）：
+      //   信息带合并为一行、全部左起：上下文 → 权限(仅图标) → 会话统计 → token 用量；模型仍在最右；
+      //   输入框沉底、发送键入框内右侧垂直居中；输入框与窗口底部留出间距。
+      // 底座结构：root(flex column) 直接子项 = card + dock；card 内 = overlay/attachments/scroll/row。
+      // order 只在各自父容器内比较：root 层 dock=1、card=2；card 层 row=1、scroll=3。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_card"] { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; gap: 4px !important; order: 2 !important; padding-top: 0 !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_row"] { align-items: center !important; gap: 8px !important; min-height: 28px !important; order: 1 !important; padding: 0 8px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_scroll"] { background: var(--dsw-specific-input-major) !important; border-radius: 14px !important; box-shadow: var(--dsw-elevation-soft) !important; margin-right: 0 !important; order: 3 !important; }',
+      // 加号是底座的"添加文件或调用指令"入口（aria-label 同名，实测为启用态）。这两项能力
+      // 在输入框里直接输入 "/"（调用指令）与 "@"（引用文件）即可完成，属冗余入口，故删除。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_add"] { display: none !important; }',
+      // tools 左内边距给上下文计量器让位：22px 图标 + 12px 间距 = 34px，
+      // 使权限触发器落在 row 内边距 8px 之外的 34px 处。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_tools"] { padding-left: 34px !important; }',
+      // 权限触发器仅显示图标：triggerLabel（"完全权限"等文字）与 chevron 收起，图标保留；
+      // 弹出菜单在 portal 内，不受影响。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="iWlSmW_trigger"] { gap: 0 !important; justify-content: center !important; padding: 0 4px !important; width: 28px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="iWlSmW_trigger"] [class*="iWlSmW_triggerLabel"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="iWlSmW_trigger"] [class*="iWlSmW_chevron"] { display: none !important; }',
+      // 信息带合并：上下文/统计在 dock（root 的直接子项）内，权限/模型在 card 内的 row 内，
+      // 二者不同容器，无法用 flex 顺序排成一行。做法是把 dock 抽出文档流、按输入框的几何
+      // 左右对齐，高度归零以免覆盖 row 拦掉权限/模型的点击，再把它的两个孩子绝对定位到 row
+      // 那条线上（row 高 28px，故中线为 top: 14px）。card 因此成为唯一在流内的子项、上移 28px。
+      // z-index 不可省：底座给 card 设了 position: relative，dock 与 card 同为定位元素时，
+      // 绘制顺序改按 flex 的 order 走；若沿用原来的 order: 1（dock 在前），row 会盖住两个
+      // 子元素，上下文与统计将点不开详情（实测 2026-09-27）。抬到 z-index: 2 即可压住 row。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) { position: relative !important; }',
+      // 会话正文滚到底会与信息带重叠：底座的 composerSeat 只在自己头 36px 内由透明渐变到
+      // 不透明，而它的顶边**正好落在信息带那一行**，于是正文半透明地透到按钮上，字与图标糊在一起。
+      // 这里把不透明段整段提到信息带起点，并在其上方补一段等长（36px）的渐隐，
+      // 正文因此在到达按钮之前就淡出到界面底色，且不出现硬边。
+      // 这是对底座外观的覆写，属适配层职责：第三层业务插件不参与，底座若改类名需同步此选择器。
+      '[class*="wSkVaW_composerSeat"] { background: var(--dsw-alias-bg-base) !important; }',
+      '[class*="wSkVaW_composerSeat"]::before { background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 0%, transparent) 0px, var(--dsw-alias-bg-base) 36px); content: ""; height: 36px; left: 0; pointer-events: none; position: absolute; right: 0; top: -36px; }',
+      // 会话正文滚到底会与信息带重叠（上下文／权限／统计／模型），字直接压在图标上读不清。
+      // 给这四个控件补一层半透明底色来压住身后的文字。底色取界面底色的六成：
+      // 界面底色是平整的浅色，六成已足以把字压成浅痕，又不至于像一块贴上去的实心块
+      //（九成时用户反馈"像出问题了"）。代价是压掉底座自身的
+      // hover 底色（弹窗与光标不受影响）。backdrop-filter 一并保留，但**在当前底座上完全不生效**
+      //（2026-09-27 实测：blur(6px) 与 blur(30px) 的渲染结果一模一样，全无模糊），
+      // 真正起遮蔽作用的是底色；保留它是为了底座将来放开该能力时能自动接手。
+      // 必须用精确词匹配 [class~=] 而非子串匹配 [class*=]：后者的子串会一并命中按钮内部的
+      // `_7KE1Ra_triggerLabel`／`_7KE1Ra_triggerEffort`／`iWlSmW_triggerIcon`，
+      // 使每一段文字各自多出一层圆角底色——表现为"Flash 与 High 之间有空隙、上下两层颜色"。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="JObwrW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="iWlSmW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="_7KE1Ra_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] [class~="bOPqQW_pill"] { -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; border-radius: 999px !important; background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] { height: 0 !important; left: calc((100% - var(--dsh-composer-card-max-width)) / 2) !important; min-height: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; width: var(--dsh-composer-card-max-width) !important; z-index: 2 !important; }',
+      // 上下文计量器占原加号位：row 左内边距 8px。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 8px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      // 统计胶囊左起接在权限触发器之后：8 + 22(上下文) + 12 + 28(权限) + 12 = 82px。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { left: 82px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      // "性能与用量"显示策略（定稿，无需"关闭"选项）：简洁档=彻底不显示（compact 的
+      // 胶囊是纯 span，detailed 的是 button——用 :has(button) 区分）；详细档=仅显示图标，
+      // 点开看详情（label 收起、图标保留，点击弹详情窗不受影响）。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats]:not(:has(button)) { display: none !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] { gap: 0 !important; padding: 2px 4px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] [class*="bOPqQW_label"] { display: none !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] svg { height: 14px !important; width: 14px !important; }',
+      // 上下文计量器仅图标：百分数是无类名的裸 span（紧跟 svg 之后），用
+      // .JObwrW_trigger > svg + span 收起；图标（环形进度 svg）保留；详情弹窗不受影响。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="JObwrW_trigger"] { gap: 0 !important; padding: 2px 4px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="JObwrW_trigger"] > svg + span { display: none !important; }',
+      // 发送键入输入框内右侧、垂直居中：输入框高约 39px（30px 内容+内距），按钮 26px，
+      // bottom 7px 即垂直居中；文字区 padding-right 让位。"停止生成"（可继续子代理会话中
+      // 与发送键同屏、同类名）必须留行内，否则两者叠在同一点——按中文 aria-label 区分，
+      // 英文界面退化为发送键留行内、布局不破。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_input"] { min-height: 30px !important; padding: 6px 44px 8px 14px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_placeholder"] { inset: 6px 44px auto 14px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"][aria-label="发送消息"] { bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute !important; right: 10px !important; transform: none !important; width: 26px !important; z-index: 3 !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"][aria-label="发送消息"] svg { height: 13px !important; width: 13px !important; }',
+      // 发送键离场后 trailing 里只余 standardControls（模型），贴行右缘。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_trailing"] { margin-left: auto !important; }',
+      // 输入框与窗口底部留出间距（此前 4px 太窄）。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) { padding-bottom: 12px !important; }',
+      // 对话框（输入框）高度上限：界面高度的三分之一，超出则在框内滚动。
+      '[class*="uV2eYG_scroll"] { max-height: min(var(--dsh-composer-text-max-height, 336px), 33vh) !important; }',
       // 0.1.7 权限触发器从 dsh-client-ui-conversation 拆出到 dsh-client-ui-permission-presets，
       // 类名由 Sh0Q9G_trigger 变为 iWlSmW_trigger（旧类名在 0.1.7 已无引用）；
       // _7KE1Ra_trigger 仍是 dsh-client-ui-model-selection 的模型触发器，保留共用字号规则。
       '[class*="Sh0Q9G_trigger"], [class*="iWlSmW_trigger"], [class*="_7KE1Ra_trigger"] { font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px) !important; }',
-      '[class*="bOPqQW_root"] { font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px) !important; padding: 4px calc(var(--dsh-composer-side-clearance) + 12px) 0 !important; }',
       // 新对话页与交付物卡片紧凑：大标题 26→22px、竖排间距 12→10px、底部留白 32→24px、
       // 交付物卡片上边距 16→12px。
       '[class*="pXSMma_headline"] { font-size: 22px !important; line-height: 28px !important; }',
@@ -399,13 +467,17 @@ window.__ModuleLoader__.load({
       // 0.1.7 无独立计时元素：用时由 formatLiveRunDuration 拼进 label 文案（"深度求索中，用时{duration}"），
       // 不再有 _turnStatusClock 的对应节点，故此处只保留旧规则供 0.1.5 回滚。
       '[class*="_turnStatusClock"] { background: none !important; color: #8b746c !important; -webkit-text-fill-color: #8b746c !important; }',
-      // 0.1.7 把运行态过程条移到会话顶部。产品要求运行态指示回到输入框上方左侧：
-      // 仅对带 data-lexflow-flowing 标记（sweep 判定为运行态）的过程条做定位，
-      // 固定在 composer 顶缘之上、与输入区左内距对齐；完成态过程条留在原位置不受影响。
-      // 产品要求过程条不显示下缘横线（运行态与完成态均不显示）。
+      // 过程条不显示下缘横线（运行态与完成态均不显示）。
       '[class*="l_V-RG_root"] { border-bottom: none !important; }',
-      // 运行态过程条移到输入框上方左侧（与输入区内左缘对齐）。
-      '[class*="l_V-RG_root"][data-lexflow-flowing="true"] { bottom: var(--lexflow-flowing-bottom, 152px); height: 24px !important; left: var(--lexflow-flowing-left, 34px); margin: 0 !important; padding-bottom: 0 !important; position: fixed; width: auto !important; z-index: 9; }',
+      // 运行态过程条回到对话流内：它本身就是流里的一个节点（槽位 conversation.chat.node、
+      // 键 turn-process，是消息列 EvIC1a_column 的直接子项），此前被 position:fixed 从流里
+      // 拎出来、按输入区几何钉在左下，只要输入区形态一变就会错位。改为让它留在流内末尾：
+      // order 推到最末，随内容滚动；上滚时随内容滚出视野（产品确认如此）。不再需要任何
+      // 坐标变量与 sweep 里的几何计算。
+      '[class*="l_V-RG_root"][data-lexflow-flowing="true"] { height: 24px !important; padding-bottom: 0 !important; width: auto !important; }',
+      // 排序标记打在流节点外壳上（sweep 依据 :has 关系设置），比 :has 选择器更稳：
+      // 无论该节点是消息列的直接子项，还是被折叠组包住，order 都能把它推到所在容器的末尾。
+      '[data-chat-flow-kind="turn-process"][data-lexflow-flowing-order="true"] { order: 99 !important; }',
       // 鼠标点击过程条（含"用时"）不显示焦点框；键盘 Tab 到达时仍保留可见焦点。
       '[class*="l_V-RG_root"]:focus:not(:focus-visible) { outline: none !important; }',
       '#lexflow-window-drag-bar { -webkit-app-region: drag; height: 22px; left: 0; position: fixed; right: 0; top: 0; z-index: 5; }',
@@ -463,37 +535,21 @@ window.__ModuleLoader__.load({
         }
         // 运行态判定读根按钮内的可见 label 文案：运行态以 chat.deepDiving 系列开头
         // （"深度求索中"／"深度求索中，用时N秒"／"Deep diving…"），完成态为"已完成工作／用时 …"等。
-        // 标记打在根按钮上供 CSS 把整条过程条收拢到输入框上方；同时按输入卡实际几何
-        // 计算停靠位置，避免依赖可能缺失的底座布局变量。
+        // 标记只用于把运行态与完成态区分开（上色、文案、排到流末）；位置完全交给 CSS 在流内解决，
+        // 不再读取任何几何坐标——此前按输入区算坐标的做法会被输入区改版带偏。
         for (const root of document.querySelectorAll('[class*="l_V-RG_root"]')) {
           const label = root.querySelector('[class*="l_V-RG_label"]')
           const text = (label?.textContent ?? '').trim()
-          if (text.startsWith('深度求索中') || text.startsWith('Deep diving')) {
-            root.setAttribute('data-lexflow-flowing', 'true')
-            // 停在对话区底部的预留带内：底缘取对话区容器下沿（预留带即在此），
-            // 左缘对齐消息内容的左内缘，因此既不压消息也不压输入框。
-            // 预留带由 CSS 给 [class*="EvIC1a_root"] 的 padding-bottom 生成；
-            // 对话区不可用时退回输入卡几何，保证老旧布局下仍有合理停靠点。
-            const area = document.querySelector('[class*="EvIC1a_root"]')
-            const card = document.querySelector('[class*="uV2eYG_card"]')
-            // 左右对齐的依据是正文内容列（EvIC1a_column：居中并受内容宽度约束），
-            // 它的左缘就是消息文字的左缘，而不是对话区容器的外缘——后者在宽窗口下会多出居中留白。
-            // 依次退回到滚动容器、内容区、输入卡，保证底座改版后仍有合理停靠点。
-            const column = document.querySelector('[class*="EvIC1a_column"]')
-              ?? document.querySelector('[class*="EvIC1a_scroll"]')
-              ?? area
-              ?? card
-            if (column !== null) {
-              const style = document.documentElement.style
-              const rect = (area ?? card).getBoundingClientRect()
-              const left = `${Math.round(column.getBoundingClientRect().left)}px`
-              const bottom = area
-                ? `${Math.round(window.innerHeight - rect.bottom + 1)}px`
-                : `${Math.round(window.innerHeight - rect.top + 6)}px`
-              if (style.getPropertyValue('--lexflow-flowing-left') !== left) style.setProperty('--lexflow-flowing-left', left)
-              if (style.getPropertyValue('--lexflow-flowing-bottom') !== bottom) style.setProperty('--lexflow-flowing-bottom', bottom)
-            }
-          } else root.removeAttribute('data-lexflow-flowing')
+          const running = text.startsWith('深度求索中') || text.startsWith('Deep diving')
+          if (running) root.setAttribute('data-lexflow-flowing', 'true')
+          else root.removeAttribute('data-lexflow-flowing')
+          // 排序标记打在流节点外壳上：外壳是流容器的子项，order 才能生效；
+          // 直接给按钮设 order 无效（它是外壳的子项，不参与流的排序）。
+          const flowItem = root.closest('[data-chat-flow-kind]')
+          if (flowItem !== null) {
+            if (running) flowItem.setAttribute('data-lexflow-flowing-order', 'true')
+            else flowItem.removeAttribute('data-lexflow-flowing-order')
+          }
         }
         updateSessionTitles()
         // 设置-通用页的版本行由底座渲染为"当前版本：<DSH 版本>"。LexFlow 是用户可见的产品，

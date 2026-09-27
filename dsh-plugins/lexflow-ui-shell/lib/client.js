@@ -254,6 +254,10 @@ window.__ModuleLoader__.load({
     }
     function goWorkbench(document) { window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { page: 'workbench', document } })) }
 
+    // "性能与用量"的显示策略（2026-09-27 定稿）：不再另设"关闭"开关。
+    // 简洁档 = 输入区不显示统计；详细档 = 仅显示图标（点开看详情）。
+    // 由适配层按底座设置 performanceUsage 的值直接处理，此处无需任何界面。
+
       const inject = ['lexflow']
       function apply(runtime) {
         const slots = runtime.ui.slots
