@@ -284,6 +284,11 @@ window.__ModuleLoader__.load({
 .lexflowLibrary .lexflowWorkflowName,.lexflowLibrary .lexflowWorkflowNameText{min-width:0}
 .lexflowLibrary .lexflowWorkflowNameText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lexflowLibrary .lexflowWorkflowIconButton{width:28px;height:28px;border-radius:999px}
+.lexflowWorkflowUnclassified{align-items:center;background:var(--lexflow-dsw-alias-bg-layer-1);border:1px solid var(--lexflow-dsw-alias-border-l2);border-radius:var(--lexflow-surface-radius);color:var(--lexflow-dsw-alias-label-secondary);display:flex;font-size:12px;gap:12px;justify-content:space-between;margin:8px 0;padding:8px 12px}
+.lexflowWorkflowUnclassified button{background:transparent;border:0;border-radius:6px;color:var(--lexflow-dsw-alias-state-business-primary);cursor:pointer;font:inherit;font-size:12px;padding:4px 8px}
+.lexflowWorkflowUnclassified button:hover,.lexflowWorkflowUnclassified button:focus-visible{background:var(--lexflow-dsw-alias-interactive-bg-hover);outline:none}
+.lexflowClassifyList{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto}
+.lexflowClassifyName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lexflowLibrary .lexflowLibraryPopover{border-radius:var(--lexflow-surface-radius)}
 .lexflowLibrary .lexflowLibraryNewMenu button{border-bottom:0}
 .lexflowLibrary .lexflowPendingFolder{min-height:40px;padding:0 12px}
@@ -450,6 +455,17 @@ window.__ModuleLoader__.load({
       ] }) })
     }
 
+    function ClassifyDialog({ files, onClose, onSubmit }) {
+      const [types, setTypes] = React.useState(() => Object.fromEntries(files.map((file) => [file, 'workflow'])))
+      const [busy, setBusy] = React.useState(false)
+      const confirm = async () => {
+        setBusy(true)
+        try { await onSubmit(types); setBusy(false) }
+        catch { setBusy(false) }
+      }
+      return jsx(Dialog, { title: '归类文件', description: '这些文件在工作流目录中但缺少类型声明。选择类型后将写入声明并纳入 LexFlow。', onClose, actions: jsx('button', { type: 'button', disabled: busy, style: { ...button, background: 'var(--lexflow-dsw-alias-state-business-primary)', borderColor: 'transparent', color: '#fff', opacity: busy ? .45 : 1 }, onClick: confirm, children: busy ? '正在归类…' : '确认归类' }), children: jsxs('div', { className: 'lexflowClassifyList', children: files.map((file) => jsxs('label', { className: 'lexflowWorkflowFieldRow', children: [jsx('span', { className: 'lexflowClassifyName', title: file, children: file.split('/').pop() }), jsx(AppSelect, { value: types[file], ariaLabel: '文件类型', onChange: (next) => setTypes((old) => ({ ...old, [file]: next })), options: [{ value: 'workflow', label: '工作流' }, { value: 'memory', label: '长期记忆' }] })] }, file)) }) })
+    }
+
     function OldDataDialog({ onClose, onRefresh, scope = 'workflow' }) {
       const [entries, setEntries] = React.useState(null)
       const [error, setError] = React.useState('')
@@ -609,6 +625,7 @@ window.__ModuleLoader__.load({
       const [pendingFolder, setPendingFolder] = React.useState(null)
       const [importFiles, setImportFiles] = React.useState(null)
       const [oldData, setOldData] = React.useState(false)
+      const [unclassified, setUnclassified] = React.useState([])
       const [notice, setNotice] = React.useState('')
       const picker = React.useRef(null)
       const toolbar = React.useRef(null)
@@ -628,8 +645,9 @@ window.__ModuleLoader__.load({
             if (current !== generation.current) return
             const nextNodes = value.nodes ?? []
             setNodes(nextNodes)
+            setUnclassified(isWorkflow ? (value.unclassified ?? []) : [])
             setSelectedPath((currentPath) => currentPath && findNode(nextNodes, currentPath) ? currentPath : null)
-          } else setNodes([])
+          } else { setNodes([]); setUnclassified([]) }
           setError('')
         } catch (cause) { if (current === generation.current) setError(cause.message) }
         finally { if (current === generation.current) setLoading(false) }
@@ -694,6 +712,16 @@ window.__ModuleLoader__.load({
         const warnings = (Array.isArray(result) ? result : []).flatMap((item) => item.warnings ?? [])
         setNotice(warnings.join('；')); setDialog(null); setImportFiles(null); await load()
       })
+      const classifySelected = (types) => attempt(async () => {
+        const failed = []
+        for (const [relativePath, type] of Object.entries(types)) {
+          try { await request('classify', { relativePath, type }) }
+          catch (cause) { failed.push(cause.message) }
+        }
+        setDialog(null)
+        setNotice(failed.length ? `归类未全部完成：${failed.join('；')}` : '已归类并纳入 LexFlow。')
+        await load(true)
+      })
       const batchApply = (values) => attempt(async () => {
         const items = [...selectedPaths].filter((value) => value && value !== 'builtin:agent').map((relativePath) => ({ relativePath }))
         if (!items.length) throw new Error('请先选择文件或文件夹。')
@@ -734,6 +762,7 @@ window.__ModuleLoader__.load({
         ] }, 'controls'),
         error && jsx('p', { className: 'lexflowWorkflowError', role: 'alert', children: error }, 'error'),
         notice && jsx('p', { className: 'lexflowWorkflowSubtitle', role: 'status', children: notice }, 'notice'),
+        isWorkflow && unclassified.length > 0 && jsx('div', { className: 'lexflowWorkflowUnclassified', role: 'status', children: [jsx('span', { children: `发现 ${unclassified.length} 个未归类文件（工作流目录中缺少类型声明）` }), jsx('button', { type: 'button', onClick: () => setDialog({ kind: 'classify' }), children: '归类' })] }, 'unclassified'),
         jsx('div', { className: 'lexflowWorkflowListHeader', children: [selectMode && jsx('span', { 'aria-hidden': true }, 'select'), jsx('span', { children: '名称' }, 'name'), jsx('span', { 'data-column': 'modified', children: '修改日期' }, 'modified'), jsx('span', { 'data-column': 'type', children: '类型' }, 'type')] }, 'list-header'),
         jsx('div', { className: 'lexflowWorkflowRows', onDragOver: (event) => event.preventDefault(), onDrop: (event) => { event.preventDefault(); dropMove(event.dataTransfer.getData('application/x-lexflow-path'), path) }, onContextMenu: (event) => { if (!event.target.closest('.lexflowWorkflowRow')) { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, parent: path }) } }, children: [
           pendingFolder !== null && jsx(PendingFolder, { onSave: saveFolder, onCancel: () => setPendingFolder(null) }, 'pending-folder'),
@@ -745,6 +774,7 @@ window.__ModuleLoader__.load({
         dialog?.kind === 'rename' && jsx(TextDialog, { title: '重命名', label: '名称', value: displayName(dialog.node), onClose: () => setDialog(null), onSubmit: (name) => renameNode(dialog.node, name) }),
         ['move', 'copy'].includes(dialog?.kind) && jsx(MoveDialog, { folders, scope: kind, rootLabel: label + '区域', onClose: () => setDialog(null), onSubmit: (target) => move(dialog.node, target, dialog.kind === 'copy'), title: dialog.kind === 'copy' ? '复制到' : '移动到' }),
         dialog?.kind === 'batch' && jsx(BatchDialog, { kind, count: selectedPaths.size, folders, onClose: () => setDialog(null), onSubmit: batchApply }),
+        dialog?.kind === 'classify' && jsx(ClassifyDialog, { files: unclassified, onClose: () => setDialog(null), onSubmit: classifySelected }),
         dialog?.kind === 'delete' && jsx(ConfirmDialog, { title: '移入旧数据', message: '文件可在旧数据中恢复。', confirmLabel: '移入旧数据', onClose: () => setDialog(null), onConfirm: () => attempt(async () => { await request('trash', { relativePath: dialog.node.relativePath }); setDialog(null); await load() }) }),
         dialog?.kind === 'import' && (isWorkflow ? jsx(ImportDialog, { files: importFiles, folders, onPick: () => picker.current?.click(), onClose: () => setDialog(null), onSubmit: importSelected }) : jsx(ArchiveImportDialog, { files: importFiles, folders, onPick: () => picker.current?.click(), onClose: () => setDialog(null), onSubmit: (target) => importSelected(null, target) })),
         oldData && jsx(OldDataDialog, { scope: kind, onClose: () => setOldData(false), onRefresh: load }),

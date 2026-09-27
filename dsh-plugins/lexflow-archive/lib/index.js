@@ -226,6 +226,10 @@ async function knowledgeIndexEntry(root, relativePath, signal, previous) {
   }
 }
 
+// 最近一次扫描得到的未归类文件（工作流目录中缺类型声明的 Markdown），按知识库根隔离，
+// 供工作流页面提示用户归类；不进入索引，也不参与任何读取或检索。
+const unclassifiedWorkflowFiles = new Map()
+
 async function refreshKnowledgeIndex(indexRoot, root, force = false) {
   const index = await readKnowledgeIndex(indexRoot, root)
   let changed = false
@@ -253,6 +257,57 @@ async function refreshKnowledgeIndex(indexRoot, root, force = false) {
   }
   if (changed) await writeKnowledgeIndex(indexRoot, root, index)
   return index
+}
+
+// 工作流目录里的文件按「类型声明」自我登记：只读取文件头就能判断是否属于 LexFlow，
+// 未声明类型的文件保持未收录并单独上报，避免把目录中无关的 Markdown 卷入索引。
+async function declaredWorkflowType(filename) {
+  const handle = await open(filename, 'r')
+  try {
+    const buffer = Buffer.alloc(8192)
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    return typeOf(buffer.toString('utf8', 0, bytesRead))
+  } finally { await handle.close() }
+}
+
+const declaredScanCache = new Map()
+
+async function scanDeclaredWorkflowFiles(root, index, force = false) {
+  const cached = force ? undefined : declaredScanCache.get(root)
+  const known = cached?.known ?? new Map()
+  const additions = []
+  const unclassified = []
+  const current = new Map()
+  const visit = async (directory) => {
+    let entries = []
+    try { entries = await readdir(directory, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const filename = path.join(directory, entry.name)
+      if (entry.isDirectory()) { await visit(filename); continue }
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) continue
+      const relativePath = toPortablePath(path.relative(root, filename))
+      if (index.files[relativePath]) continue
+      try {
+        const info = await stat(filename)
+        const stamp = info.mtime.toISOString() + ':' + info.size
+        const previous = known.get(relativePath)
+        const declared = previous?.stamp === stamp ? previous.declared : await declaredWorkflowType(filename)
+        current.set(relativePath, { stamp, declared })
+        if (declared) additions.push(relativePath)
+        else unclassified.push(relativePath)
+      } catch {}
+    }
+  }
+  await visit(inside(root, WORKFLOW_FOLDER_NAME))
+  for (const relativePath of additions) {
+    try {
+      const entry = await knowledgeIndexEntry(root, relativePath)
+      index.files[entry.relativePath] = entry
+    } catch {}
+  }
+  declaredScanCache.set(root, { known: current })
+  return { added: additions, unclassified: unclassified.sort((a, b) => a.localeCompare(b, 'zh-CN')) }
 }
 
 function remapKnowledgeIndex(index, from, to, keepSource = false) {
@@ -1065,8 +1120,27 @@ export function apply(ctx, config = {}) {
     await scopeDirectory(root, WORKFLOW_FOLDER_NAME)
     await ensureWorkflowDirectory(root)
     const index = await refreshKnowledgeIndex(knowledgeBaseIndexRoot, root, force)
+    const scanned = await scanDeclaredWorkflowFiles(root, index, force)
+    unclassifiedWorkflowFiles.set(root, scanned.unclassified)
+    if (scanned.added.length > 0) {
+      await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, index)
+      // 先写入使用方式再同步：自动收录的文件与导入一致，落在「相关内容」档。
+      const settings = await readWorkflowSettings(workflowSettingsPath)
+      const key = rootId(root)
+      const bucket = settings.roots[key] ?? { rootPath: root, files: {} }
+      bucket.rootPath = root
+      for (const relativePath of scanned.added) {
+        const entry = index.files[relativePath]
+        if (!entry) continue
+        bucket.files[entry.fileId] = { relativePath, useMode: NEW_USE_MODE, updatedAt: entry.updatedAt, revision: entry.revision }
+      }
+      settings.roots[key] = bucket
+      await writeWorkflowSettings(workflowSettingsPath, settings)
+      await syncWorkflowSettings(root, index)
+    }
     return { ...index, files: Object.fromEntries(Object.entries(index.files).filter(([key]) => key.startsWith(WORKFLOW_FOLDER_NAME + '/'))) }
   }
+  const unclassifiedFor = async (root) => unclassifiedWorkflowFiles.get(root) ?? []
   const syncWorkflowSettings = async (root, index) => {
     const settings = await readWorkflowSettings(workflowSettingsPath)
     const key = rootId(root)
@@ -1256,6 +1330,24 @@ export function apply(ctx, config = {}) {
     await writeKnowledgeIndex(knowledgeBaseIndexRoot, root, index)
     await syncWorkflowSettings(root, index)
     return { relativePath: current.relativePath, revision: digest(next) }
+  }
+
+  const classifyWorkflowFile = async ({ relativePath, type }) => {
+    if (!FILE_TYPES.has(type)) throw new Error('文件类型必须是工作流或长期记忆。')
+    const root = await requireKnowledgeRoot()
+    const current = pathFromRoot(root, workflowPath(relativePath))
+    inside(inside(root, WORKFLOW_FOLDER_NAME), path.relative(WORKFLOW_FOLDER_NAME, current.relativePath))
+    if (!current.filename.toLowerCase().endsWith('.md')) throw new Error('这里只管理 Markdown 文件。')
+    const info = await stat(current.filename)
+    if (!info.isFile()) throw new Error('知识库文件无效。')
+    if (info.size > MAX_MARKDOWN_BYTES) throw new Error('Markdown 文件过大。')
+    const content = await readFile(current.filename, 'utf8')
+    if (typeOf(content)) throw new Error('该文件已有类型声明，请刷新后重试。')
+    const next = withType(content, type)
+    await historyCopy(historyRoot, 'workflow-classify', current.relativePath, current.filename)
+    await atomicWrite(current.filename, next)
+    const entry = await registerKnowledgeFile(root, current.relativePath, NEW_USE_MODE)
+    return { relativePath: entry.relativePath, name: entry.name, type: entry.type, fileId: entry.fileId, useMode: NEW_USE_MODE }
   }
 
   const setKnowledgeType = async ({ relativePath, type }) => {
@@ -1743,24 +1835,17 @@ export function apply(ctx, config = {}) {
     if (action === 'workflow.selectRoot') return chooseKnowledgeRoot(request.rootPath)
     if (action === 'workflow.knowledgeBases.select') return selectKnowledgeBase(request.id)
     if (action === 'workflow.useDefaultRoot') return useDefaultKnowledgeRoot()
-    if (action === 'workflow.list') {
+    if (action === 'workflow.list' || action === 'workflow.refresh') {
       const root = await requireKnowledgeRoot()
-      const index = await loadKnowledgeIndex(root, request.force === true)
+      const index = await loadKnowledgeIndex(root, request.force === true || action === 'workflow.refresh')
       const bucket = await syncWorkflowSettings(root, index)
       const entries = new Map(Object.values(index.files).filter((entry) => !entry.status).map((entry) => [entry.relativePath, { ...entry, useMode: bucket.files[entry.fileId]?.useMode ?? DEFAULT_USE_MODE }]))
       const nodes = await listTree(inside(root, WORKFLOW_FOLDER_NAME), WORKFLOW_FOLDER_NAME, entries)
       const agent = await readAgent()
-      return { rootPath: root, rootName: path.basename(root), nodes: [builtinAgentEntry(agent.content, agent.updatedAt), ...nodes] }
+      const unclassified = await unclassifiedFor(root)
+      return { rootPath: root, rootName: path.basename(root), nodes: [builtinAgentEntry(agent.content, agent.updatedAt), ...nodes], unclassified }
     }
-    if (action === 'workflow.refresh') {
-      const root = await requireKnowledgeRoot()
-      const index = await loadKnowledgeIndex(root, true)
-      const bucket = await syncWorkflowSettings(root, index)
-      const entries = new Map(Object.values(index.files).filter((entry) => !entry.status).map((entry) => [entry.relativePath, { ...entry, useMode: bucket.files[entry.fileId]?.useMode ?? DEFAULT_USE_MODE }]))
-      const nodes = await listTree(inside(root, WORKFLOW_FOLDER_NAME), WORKFLOW_FOLDER_NAME, entries)
-      const agent = await readAgent()
-      return { rootPath: root, rootName: path.basename(root), nodes: [builtinAgentEntry(agent.content, agent.updatedAt), ...nodes] }
-    }
+    if (action === 'workflow.classify') return classifyWorkflowFile(request)
     if (action === 'workflow.read') return readKnowledgeFile(request.relativePath)
     if (action === 'workflow.commitDocument') return commitWorkflowDocument(request)
     if (action === 'workflow.settings.list') return listWorkflowSettings()
