@@ -1,7 +1,7 @@
 {
   "name": "lexflow-legal",
   "productName": "LexFlow",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "LexFlow 独立法律工作流桌面应用",
   "main": "out/main/index.js",
   "license": "MIT",

@@ -227,7 +227,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.4.4"
+    const LEXFLOW_PRODUCT_VERSION = "0.4.5"
     const LEXFLOW_DSH_VERSION = "0.1.7-alpha.1"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
@@ -300,6 +300,11 @@ window.__ModuleLoader__.load({
       '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) { isolation: isolate !important; position: fixed !important; inset: 0 !important; z-index: 2147483000 !important; }',
       '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) > [role="dialog"][aria-modal="true"] { position: relative !important; z-index: 1 !important; }',
       '[data-lexflow-modal-open="true"] .lexflowFrame_handle, [data-lexflow-modal-open="true"] [class*="wSkVaW_widthHandle"] { pointer-events: none !important; visibility: hidden !important; }',
+      // 弹窗打开时一并隐藏运行态 Flowing 条：它是 position: fixed 的浮层（见下方 z-index 规则），
+      // 与遮罩、弹窗卡片的层叠关系取决于底座当时的结构，逐个对层级既不可靠也无意义——
+      // 弹窗期间用户的注意力在弹窗内，过程指示显示在遮罩下或遮罩上都是噪音。直接隐藏最干净。
+      // 只隐藏运行态（data-lexflow-flowing），完成态过程条属于对话正文，留在原位。
+      '[data-lexflow-modal-open="true"] [class*="l_V-RG_root"][data-lexflow-flowing="true"] { display: none !important; }',
       // 0.1.5 底座把会话日志控件从“下载按钮”改成“更多操作”菜单：类名由 sessionLogButton 变为 *moreButton，
       // 无障碍标签变为“更多操作”“More actions”，且不再下发 data-id/data-slot-id。
       // 依据 0.1.5-rc.1 产物与隔离实验（dsh-session-log-export/lib/client.js 的 register 选项与按钮属性）确定匹配方式。

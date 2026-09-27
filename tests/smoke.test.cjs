@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.4')
+  assert.equal(packageJson.version, '0.4.5')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -397,6 +397,9 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   assert.match(shell, /adapter\.ui\.mountShell/)
   assert.match(workflow, /require\("@lexflow\/dsh-adapter"\)/)
   for (const symbol of ['createSnapshotStore', 'defineStore', 'toAssistantBlocks', 'isTokenDelta', 'Modal', 'writeClipboard']) assert.match(adapter, new RegExp(symbol))
+  // 弹窗打开时，所有覆盖层浮点元素都必须处置：返回箭头／侧栏开关、拖拽手柄、
+  // 以及运行态 Flowing 条。漏一个就会出现"浮层压着弹窗遮罩"的观感问题。
+  assert.match(adapter, /\[data-lexflow-modal-open="true"\][^\n]*l_V-RG_root[^\n]*display: none/u)
 })
 
 test('LexFlow Codex bridge retains the complete capability surface', () => {
