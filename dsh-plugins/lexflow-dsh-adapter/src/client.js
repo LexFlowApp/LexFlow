@@ -375,9 +375,9 @@ window.__ModuleLoader__.load({
       // 加号是底座的"添加文件或调用指令"入口（aria-label 同名，实测为启用态）。这两项能力
       // 在输入框里直接输入 "/"（调用指令）与 "@"（引用文件）即可完成，属冗余入口，故删除。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_add"] { display: none !important; }',
-      // tools 左内边距给上下文计量器让位：22px 图标 + 12px 间距 = 34px，
-      // 使权限触发器落在 row 内边距 8px 之外的 34px 处。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_tools"] { padding-left: 34px !important; }',
+      // 信息带左起第一格是权限触发器，不加任何让位：上下文计量器在新对话中不渲染，
+      // 若把它放在最左、把权限推到其右侧，新对话的最左就会空出一截（用户 2026-09-27 反馈）。
+      // 权限因此落在 row 自身内边距 8px 处，与输入框左缘齐平；上下文排在其右，见下。
       // 权限触发器仅显示图标：triggerLabel（"完全权限"等文字）与 chevron 收起，图标保留；
       // 弹出菜单在 portal 内，不受影响。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="iWlSmW_trigger"] { gap: 0 !important; justify-content: center !important; padding: 0 4px !important; width: 28px !important; }',
@@ -409,10 +409,13 @@ window.__ModuleLoader__.load({
       // 使每一段文字各自多出一层圆角底色——表现为"Flash 与 High 之间有空隙、上下两层颜色"。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="JObwrW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="iWlSmW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="_7KE1Ra_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] [class~="bOPqQW_pill"] { -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; border-radius: 999px !important; background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) !important; }',
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] { height: 0 !important; left: calc((100% - var(--dsh-composer-card-max-width)) / 2) !important; min-height: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; width: var(--dsh-composer-card-max-width) !important; z-index: 2 !important; }',
-      // 上下文计量器占原加号位：row 左内边距 8px。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 8px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
-      // 统计胶囊左起接在权限触发器之后：8 + 22(上下文) + 12 + 28(权限) + 12 = 82px。
+      // 上下文计量器接在权限触发器之后：8(row 内边距) + 28(权限) + 12(间距) = 48px。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 48px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      // 统计胶囊接在上下文之后：8 + 28(权限) + 12 + 22(上下文) + 12 = 82px。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { left: 82px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      // 新对话没有上下文计量器，统计胶囊需整体左移补位，否则权限与统计之间会空出一格：
+      // 8 + 28(权限) + 12 = 48px。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"]:not(:has([class~="JObwrW_root"])) [data-composer-stats] { left: 48px !important; }',
       // "性能与用量"显示策略（定稿，无需"关闭"选项）：简洁档=彻底不显示（compact 的
       // 胶囊是纯 span，detailed 的是 button——用 :has(button) 区分）；详细档=仅显示图标，
       // 点开看详情（label 收起、图标保留，点击弹详情窗不受影响）。

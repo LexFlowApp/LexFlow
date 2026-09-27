@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.7')
+  assert.equal(packageJson.version, '0.4.8')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -462,15 +462,18 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   // 统计行并入信息带（dock 提到 card 之前），发送键入输入框（仅"发送消息"，停止键留行内）。
   assert.match(adapter, /uV2eYG_dock"\] \{[^}]*z-index: 2/u)
   assert.match(adapter, /uV2eYG_card"\] \{[^}]*order: 2/u)
-  // 信息带三次定稿：合并为一行、全部左起（上下文 → 权限 → 统计 → 用量），模型仍在最右。
+  // 信息带合并为一行、全部左起（权限 → 上下文 → 统计 → 用量），模型仍在最右。
   // 加号（底座的"添加文件或调用指令"冗余入口）删除；dock 抽出文档流按输入框对齐并归零高度，
   // 两个子元素绝对定位到 row 那条线上。
+  // 权限占最左：上下文计量器在新对话中不渲染，若把权限推到其右侧，新对话的最左会空出一截。
   assert.match(adapter, /uV2eYG_add"\] \{ display: none/u)
-  assert.match(adapter, /uV2eYG_tools"\] \{ padding-left: 34px/u)
+  assert.doesNotMatch(adapter, /uV2eYG_tools"\] \{ padding-left/u)
   assert.match(adapter, /uV2eYG_dock"\] \{ height: 0/u)
-  assert.match(adapter, /uV2eYG_dock"\] \[class\*="JObwrW_root"\] \{ left: 8px/u)
+  assert.match(adapter, /uV2eYG_dock"\] \[class\*="JObwrW_root"\] \{ left: 48px/u)
   assert.match(adapter, /uV2eYG_dock"\] \[data-composer-stats\] \{ left: 82px/u)
-  // 信息带四个控件各自加毛玻璃，避免会话正文滚到底时糊在按钮上；不设背景色以保留 hover 底色。
+  // 没有上下文计量器时（新对话），统计胶囊左移补位。
+  assert.match(adapter, /:not\(:has\(\[class~="JObwrW_root"\]\)\) \[data-composer-stats\] \{ left: 48px/u)
+  // 信息带四个控件加六成底色；backdrop-filter 在本应用不生效，遮蔽靠底色完成。
   assert.match(adapter, /\[class~="bOPqQW_pill"\] \{ -webkit-backdrop-filter: blur\(6px\) !important; backdrop-filter: blur\(6px\) !important; border-radius: 999px !important; background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) 60%/u)
   // 底色选择器必须用精确词匹配，否则子串会命中按钮内部的分段元素，各段各长出一层底色。
   assert.doesNotMatch(adapter, /\[class\*="_7KE1Ra_trigger"\] \{[^}]*background-color/u)
