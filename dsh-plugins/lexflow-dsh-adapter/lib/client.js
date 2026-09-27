@@ -227,7 +227,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.4.8"
+    const LEXFLOW_PRODUCT_VERSION = "0.4.9"
     const LEXFLOW_DSH_VERSION = "0.1.7-alpha.1"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
@@ -427,15 +427,22 @@ window.__ModuleLoader__.load({
       // .JObwrW_trigger > svg + span 收起；图标（环形进度 svg）保留；详情弹窗不受影响。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="JObwrW_trigger"] { gap: 0 !important; padding: 2px 4px !important; }',
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="JObwrW_trigger"] > svg + span { display: none !important; }',
-      // 发送键入输入框内右侧、垂直居中：输入框高约 39px（30px 内容+内距），按钮 26px，
-      // bottom 7px 即垂直居中；文字区 padding-right 让位。"停止生成"（可继续子代理会话中
-      // 与发送键同屏、同类名）必须留行内，否则两者叠在同一点——按中文 aria-label 区分，
-      // 英文界面退化为发送键留行内、布局不破。
+      // 发送键与停止键都是底座的 primary 按钮（34×34、带 translateY(-2px)），同在 row 的 trailing 内。
+      // Tooltip 不套壳，按钮即 trailing 的直接子项，故 trailing 的子项顺序恒为
+      // [standardControls(模型), activity, 停止键?, 发送键]——发送键永远是最后一个。
+      // 此前只按 aria-label="发送消息" 定位，停止键因此留在行内：运行态下它跑到信息带那一行、
+      // 输入框里反而空了；而且它 34px 高把 row 从 28px 撑大，dock 里按 28px 定位的上下文与统计
+      // 随之与流内的权限触发器错开（用户 2026-09-27 反馈"左侧四个按钮没对齐、发送键跑到对话框上面"）。
+      // 改为按类名定位全部 primary 按钮，不依赖文案；两者同屏时（可继续的子代理会话）
+      // 前一个即停止键左移让位，避免叠在同一点。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_input"] { min-height: 30px !important; padding: 6px 44px 8px 14px !important; }',
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_placeholder"] { inset: 6px 44px auto 14px !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"][aria-label="发送消息"] { bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute !important; right: 10px !important; transform: none !important; width: 26px !important; z-index: 3 !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"][aria-label="发送消息"] svg { height: 13px !important; width: 13px !important; }',
-      // 发送键离场后 trailing 里只余 standardControls（模型），贴行右缘。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"] { bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute !important; right: 10px !important; transform: none !important; width: 26px !important; z-index: 3 !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) button[class*="uV2eYG_primary"] svg { height: 13px !important; width: 13px !important; }',
+      // 两个 primary 同屏时，前一个（停止键）让位到左格；输入框文字区同步加宽，避免压字。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_trailing"] button[class*="uV2eYG_primary"]:not(:last-child) { right: 42px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]):has([class*="uV2eYG_trailing"] button[class*="uV2eYG_primary"]:not(:last-child)) [class*="uV2eYG_input"] { padding-right: 74px !important; }',
+      // 发送键与停止键都离场时，trailing 里只余 standardControls（模型），贴行右缘。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_trailing"] { margin-left: auto !important; }',
       // 输入框与窗口底部留出间距（此前 4px 太窄）。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) { padding-bottom: 12px !important; }',

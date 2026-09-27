@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.8')
+  assert.equal(packageJson.version, '0.4.9')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -459,7 +459,7 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   assert.match(adapter, /:not\(\[class\*="uV2eYG_hero"\]\) \[class\*="uV2eYG_card"\] \{ background: transparent/u)
   assert.match(adapter, /max-height: min\(var\(--dsh-composer-text-max-height, 336px\), 33vh\)/u)
   assert.match(adapter, /uV2eYG_input"\] \{ min-height: 30px/u)
-  // 统计行并入信息带（dock 提到 card 之前），发送键入输入框（仅"发送消息"，停止键留行内）。
+  // 统计行并入信息带（dock 提到 card 之前），发送键与停止键都在输入框内右侧。
   assert.match(adapter, /uV2eYG_dock"\] \{[^}]*z-index: 2/u)
   assert.match(adapter, /uV2eYG_card"\] \{[^}]*order: 2/u)
   // 信息带合并为一行、全部左起（权限 → 上下文 → 统计 → 用量），模型仍在最右。
@@ -485,8 +485,10 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   assert.match(adapter, /wSkVaW_composerSeat"\] \{ background: var\(--dsw-alias-bg-base\) !important/u)
   assert.match(adapter, /wSkVaW_composerSeat"\]::before \{[^}]*top: -36px/u)
   assert.doesNotMatch(adapter, /uV2eYG_hero"\]\)::before/u)
-  assert.match(adapter, /aria-label="发送消息"\] \{[^}]*position: absolute/u)
-  assert.doesNotMatch(adapter, /uV2eYG_primary"\] \{[^}]*position: absolute/u)
+  // 发送键与停止键都定位到输入框内右侧，按类名而非文案；两者同屏时停止键左移让位。
+  assert.match(adapter, /uV2eYG_primary"\] \{ bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute/u)
+  assert.match(adapter, /uV2eYG_trailing"\] button\[class\*="uV2eYG_primary"\]:not\(:last-child\) \{ right: 42px/u)
+  assert.doesNotMatch(adapter, /aria-label="发送消息"\] \{/u)
   // "性能与用量"显示策略（定稿）：简洁档彻底隐藏（非按钮的胶囊组），详细档仅图标；
   // 不再另设"关闭"开关行（同 id 接管会让 chat 激活失败，实测 2026-09-27；独立开关行已废弃）。
   assert.match(adapter, /data-composer-stats\]:not\(:has\(button\)\) \{ display: none/u)
