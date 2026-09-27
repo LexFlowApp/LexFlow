@@ -287,8 +287,13 @@ window.__ModuleLoader__.load({
 .lexflowWorkflowUnclassified{align-items:center;background:var(--lexflow-dsw-alias-bg-layer-1);border:1px solid var(--lexflow-dsw-alias-border-l2);border-radius:var(--lexflow-surface-radius);color:var(--lexflow-dsw-alias-label-secondary);display:flex;font-size:12px;gap:12px;justify-content:space-between;margin:8px 0;padding:8px 12px}
 .lexflowWorkflowUnclassified button{background:transparent;border:0;border-radius:6px;color:var(--lexflow-dsw-alias-state-business-primary);cursor:pointer;font:inherit;font-size:12px;padding:4px 8px}
 .lexflowWorkflowUnclassified button:hover,.lexflowWorkflowUnclassified button:focus-visible{background:var(--lexflow-dsw-alias-interactive-bg-hover);outline:none}
-.lexflowClassifyList{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto}
+.lexflowClassifyList{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.lexflowClassifyRow{align-items:center;display:flex;gap:12px;justify-content:space-between}
 .lexflowClassifyName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lexflowClassifyChoices{display:flex;flex:0 0 auto;gap:4px}
+.lexflowClassifyChoice{background:transparent;border:0;color:var(--lexflow-dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px}
+.lexflowClassifyChoice:hover,.lexflowClassifyChoice:focus-visible{color:var(--lexflow-dsw-alias-state-business-primary);outline:none}
+.lexflowClassifyChoice[data-selected=true]{color:var(--lexflow-dsw-alias-state-business-primary);font-weight:600}
 .lexflowLibrary .lexflowLibraryPopover{border-radius:var(--lexflow-surface-radius)}
 .lexflowLibrary .lexflowLibraryNewMenu button{border-bottom:0}
 .lexflowLibrary .lexflowPendingFolder{min-height:40px;padding:0 12px}
@@ -463,7 +468,29 @@ window.__ModuleLoader__.load({
         try { await onSubmit(types); setBusy(false) }
         catch { setBusy(false) }
       }
-      return jsx(Dialog, { title: '归类文件', description: '这些文件在工作流目录中但缺少类型声明。选择类型后将写入声明并纳入 LexFlow。', onClose, actions: jsx('button', { type: 'button', disabled: busy, style: { ...button, background: 'var(--lexflow-dsw-alias-state-business-primary)', borderColor: 'transparent', color: '#fff', opacity: busy ? .45 : 1 }, onClick: confirm, children: busy ? '正在归类…' : '确认归类' }), children: jsxs('div', { className: 'lexflowClassifyList', children: files.map((file) => jsxs('label', { className: 'lexflowWorkflowFieldRow', children: [jsx('span', { className: 'lexflowClassifyName', title: file, children: file.split('/').pop() }), jsx(AppSelect, { value: types[file], ariaLabel: '文件类型', onChange: (next) => setTypes((old) => ({ ...old, [file]: next })), options: [{ value: 'workflow', label: '工作流' }, { value: 'memory', label: '长期记忆' }] })] }, file)) }) })
+      // 用并排按钮而不是下拉：列表容器带纵向滚动，下拉菜单是绝对定位、从按钮下方展开，
+      // 会被容器裁掉而看起来"点了没反应"。按钮不产生溢出，从根上避免这一层裁剪。
+      const rows = files.map((file) => jsxs('div', { className: 'lexflowClassifyRow', children: [
+        jsx('span', { className: 'lexflowClassifyName', title: file, children: file.split('/').pop() }),
+        jsx('div', { className: 'lexflowClassifyChoices', role: 'radiogroup', 'aria-label': '文件类型', children: [['workflow', '工作流'], ['memory', '长期记忆']].map(([value, label]) => jsx('button', {
+          key: value,
+          type: 'button',
+          role: 'radio',
+          'aria-checked': types[file] === value,
+          'data-selected': types[file] === value,
+          className: 'lexflowClassifyChoice',
+          onClick: () => setTypes((old) => ({ ...old, [file]: value })),
+          children: label,
+        }, value)) }),
+      ] }, file))
+      const submit = jsx('button', { type: 'button', disabled: busy, style: { ...button, background: 'var(--lexflow-dsw-alias-state-business-primary)', borderColor: 'transparent', color: '#fff', opacity: busy ? .45 : 1 }, onClick: confirm, children: busy ? '正在归类…' : '确认归类' })
+      return jsx(Dialog, {
+        title: '归类文件',
+        description: '这些文件在工作流目录中但缺少类型声明。选择类型后将写入声明并纳入 LexFlow。',
+        onClose,
+        actions: submit,
+        children: jsx('div', { className: 'lexflowClassifyList', children: rows }),
+      })
     }
 
     function OldDataDialog({ onClose, onRefresh, scope = 'workflow' }) {

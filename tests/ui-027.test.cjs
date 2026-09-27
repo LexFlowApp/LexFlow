@@ -35,3 +35,23 @@ test('UI: F2 opens name editor and Escape does not rename or navigate',async()=>
  await Renderer.act(async()=>view.root.findByProps({'aria-label':'编辑名称'}).props.onKeyDown({...clickEvent,key:'Escape'}))
  assert.equal(calls.some(([a])=>a==='archive.move'),false);assert.equal(navigation.length,0);await Renderer.act(async()=>view.unmount())
 })
+// 「归类」对话框不得使用下拉选择：列表容器带纵向滚动，绝对定位的下拉菜单会被容器裁掉，
+// 表现成"点了没反应"。类型选择必须是容器内可见、不产生溢出的按钮。
+test('UI: classify dialog selects the type with inline buttons and submits the compiled request',async()=>{
+ const ui=pages(),calls=[];ui.configure({request:async(a,p)=>{calls.push([a,p]);return a==='workflow.status'?{configured:true,knowledgeBases:[{id:'kb',active:true}]}:a==='workflow.list'?{nodes:[],unclassified:['工作流/甲.md','工作流/乙.md']}:{}},navigate:()=>{}})
+ let view;await Renderer.act(async()=>{view=Renderer.create(React.createElement(ui.pages.Workflow));await flush()})
+ await Renderer.act(async()=>view.root.findByProps({role:'status'}).findAllByType('button')[0].props.onClick())
+ const dialog=view.root.findAllByProps({role:'dialog'}).at(-1)
+ assert.equal(dialog.findAllByProps({className:'lexflowSelect'}).length,0)
+ const groups=dialog.findAllByProps({role:'radiogroup'})
+ assert.equal(groups.length,2)
+ assert.equal(groups[0].findAllByType('button').length,2)
+ assert.equal(groups[0].findAllByProps({'data-selected':true})[0].children.join(''),'工作流')
+ // 第一个文件改成「长期记忆」，第二个保持默认「工作流」。
+ await Renderer.act(async()=>groups[0].findAllByType('button').find(node=>node.children.join('')==='长期记忆').props.onClick())
+ const confirm=dialog.findAllByType('button').find(node=>node.children.join('')==='确认归类')
+ await Renderer.act(async()=>confirm.props.onClick());await flush()
+ const sent=calls.filter(([a])=>a==='workflow.classify').map(([,p])=>p.type+':'+p.relativePath)
+ assert.deepEqual(sent,['memory:工作流/甲.md','workflow:工作流/乙.md'])
+ await Renderer.act(async()=>view.unmount())
+})

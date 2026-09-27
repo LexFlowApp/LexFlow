@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.4.3')
+  assert.equal(packageJson.version, '0.4.4')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -83,6 +83,30 @@ test('the LexFlow main process has one workspace backend and only window IPC', (
   assert.doesNotMatch(main, /ipcMain\.handle\('(standards|archive|workbench|app):/)
   assert.doesNotMatch(main, /function listStandards\(/)
   assert.doesNotMatch(main, /function openWorkbench\(/)
+})
+
+test('every plugin source and built artifact parses, so a typo cannot ship as a silent load failure', () => {
+  // 提示词等长文本里误用反引号会截断模板字符串：源码"看起来正常"，产物却语法错误，
+  // 表现为 dsh 启动后某个插件 failed to import（功能静默消失，界面无任何提示）。
+  // 用 node --check 逐文件解析（本仓库为 type: module，能正确处理 ESM 语法）；
+  // 真实导入依赖 dsh 运行时与插件相互引用，不在此处模拟。
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'manifest.json'), 'utf8'))
+  let checked = 0
+  for (const plugin of manifest.packages) {
+    for (const entrypoint of plugin.entrypoints) {
+      for (const candidate of [entrypoint.replace(/^lib\//u, 'src/'), entrypoint]) {
+        const filename = path.join(root, 'dsh-plugins', plugin.source, candidate)
+        if (!fs.existsSync(filename)) continue
+        try {
+          execFileSync(process.execPath, ['--check', filename], { stdio: 'pipe' })
+        } catch (error) {
+          assert.fail(`${plugin.target} ${candidate} must parse: ${String(error.stderr ?? error.message)}`)
+        }
+        checked += 1
+      }
+    }
+  }
+  assert.ok(checked > 0)
 })
 
 test('the bundled plugin manifest matches every runtime package', () => {
