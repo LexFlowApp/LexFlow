@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.5.0')
+  assert.equal(packageJson.version, '0.5.1')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -619,6 +619,19 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(adapter, /uV2eYG_scroll"\] \{ background: var\(--dsw-specific-input-major\) !important; border-radius: 14px/)
   assert.match(adapter, /div\[class\*="bubble"\] \{ border-radius: 14px/)
   assert.match(adapter, /markdown_kcgor/)
+  // 信息带（dock）与输入框卡片（card）的对齐回归：dock 不得再按
+  // --dsh-composer-card-max-width 反推 left（该变量含 680px 下限，列宽更窄时
+  // 算出负偏移，四个按钮重叠）；必须用 left:50% + translateX(-50%) 的等价几何。
+  assert.match(adapter, /uV2eYG_dock"\] \{ height: 0 !important; left: 50% !important;[^']*max-width: var\(--dsh-composer-card-max-width\) !important/)
+  assert.doesNotMatch(adapter, /uV2eYG_dock"\] \{ height: 0 !important; left: calc\(\(100% - var\(--dsh-composer-card-max-width\)\)/)
+  // 右栏轨道回归：底座把 track 作为「是否为右栏保留一列」的布尔信号传入，
+  // 窄视口（<768px，面板为全屏覆盖形态）时必须释放轨道，否则 360px 的列宽
+  // 会挤掉半屏下的对话区。
+  assert.match(adapter, /if \(track === false\) d\.rightbar = 0;/)
+  // 右栏列不得裁切：底座全屏形态的面板按 100vw 绘制，列上的 overflow:hidden
+  // 会把它剪成一条窄缝（用户 2026-09-28 反馈"横屏电影只看到右侧竖边"）。
+  assert.match(lexflowUi, /data-lexflow-layout="rightbar"\] \{ min-height: 0; min-width: 0; overflow: visible !important/)
+  assert.match(adapter, /data-lexflow-layout="rightbar"\] \{ min-width: 0; min-height: 0; overflow: visible !important/)
   // 列宽调整器回归：EvIC1a_column 的 max-width 由 --dsh-chat-content-width 驱动，
   // 是底座原生拖拽改宽的目标属性；适配层若对该元素施加 max-width／min-width 会让调整器失效。
   assert.doesNotMatch(adapter, /\[class\*="EvIC1a_column"\][^']*max-width/)

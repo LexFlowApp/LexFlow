@@ -96,7 +96,13 @@ window.__ModuleLoader__.load({
       '[data-lexflow-layout="sidebar"] { background: linear-gradient(180deg, var(--lexflow-dsw-alias-bg-base) 0px, var(--lexflow-dsw-specific-sidebar-fill) 96px) !important; border-right: none !important; overflow: hidden !important; position: relative !important; z-index: 3 !important; }',
       '[data-lexflow-layout="sidebar"]::after { background: linear-gradient(180deg, transparent 0px, var(--lexflow-dsw-alias-border-l1) 96px); bottom: 0; content: ""; pointer-events: none; position: absolute; right: 0; top: 0; width: 1px; z-index: 0; }',
       '[data-lexflow-layout="frame"] { isolation: isolate; min-height: 0; min-width: 0; position: relative; }',
-      '[data-lexflow-layout="center"], [data-lexflow-layout="rightbar"] { min-height: 0; min-width: 0; overflow: hidden !important; position: relative; }',
+      '[data-lexflow-layout="center"] { min-height: 0; min-width: 0; overflow: hidden !important; position: relative; }',
+      // 右栏列不得裁切：底座的右侧边栏在窄视口（<768px）切换为全屏形态，
+      // 面板按 100vw 绘制并覆盖全界面（dsh-client-ui-sidebar-right 的 autoFullscreen）。
+      // 底座自身的右栏列就是 overflow:visible（pI_x6G_rightbarCol），LexFlow 此前
+      // 沿用了中央列的 overflow:hidden，把全屏面板剪成只剩一列宽的右边缘窄缝，
+      // 左部内容全部不可见（用户 2026-09-28 反馈"横屏电影在竖屏手机上只看到右侧竖边"）。
+      '[data-lexflow-layout="rightbar"] { min-height: 0; min-width: 0; overflow: visible !important; position: relative; }',
       '[data-lexflow-layout="rightbar"] { background: var(--lexflow-dsw-alias-bg-base); z-index: 1; }',
       '[data-lexflow-layout="center"] > *, [data-lexflow-layout="center"] [data-slot="conversation.session"] { max-width: 100%; min-width: 0; }',
       '[data-shell-overlay] { isolation: isolate; z-index: 1000 !important; }',

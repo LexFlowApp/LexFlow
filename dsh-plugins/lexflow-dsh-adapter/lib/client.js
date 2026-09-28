@@ -227,7 +227,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.5.0"
+    const LEXFLOW_PRODUCT_VERSION = "0.5.1"
     const LEXFLOW_DSH_VERSION = "0.1.7-alpha.1"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
@@ -283,7 +283,13 @@ window.__ModuleLoader__.load({
       '@media (max-width: 900px) { header[class*="wSkVaW_header"] { gap: 8px !important; padding-right: 12px !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { gap: 8px !important; margin-right: 8px !important; } header[class*="wSkVaW_header"] .wSkVaW_crumb { max-width: min(180px, 24vw) !important; } }',
       '@media (max-width: 700px) { header[class*="wSkVaW_header"] { align-items: stretch !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 4px !important; min-height: 116px !important; overflow: hidden !important; } header[class*="wSkVaW_header"] > div[class*="titleRow"] { align-items: stretch !important; display: block !important; flex: 0 0 auto !important; max-width: 100% !important; min-width: 0 !important; order: 1 !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="titleCluster"] { flex: 0 0 auto !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_headerUtilities"] { align-self: flex-start !important; margin-left: 0 !important; order: 2 !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { align-self: flex-start !important; margin-left: 0 !important; margin-right: 0 !important; order: 2 !important; } }',
       '[data-lexflow-layout="frame"] { isolation: isolate; min-width: 0; min-height: 0; position: relative; }',
-      '[data-lexflow-layout="center"], [data-lexflow-layout="rightbar"] { min-width: 0; min-height: 0; overflow: hidden !important; position: relative; }',
+      '[data-lexflow-layout="center"] { min-width: 0; min-height: 0; overflow: hidden !important; position: relative; }',
+      // 右栏列不得裁切：底座右侧边栏在窄视口（<768px）切换为全屏形态，面板按 100vw
+      // 绘制并覆盖全界面（dsh-client-ui-sidebar-right 的 autoFullscreen）。底座自身的
+      // 右栏列就是 overflow:visible（pI_x6G_rightbarCol）；LexFlow 此前沿用中央列的
+      // overflow:hidden，把全屏面板剪成只剩一列宽的右边缘窄缝，左部全部不可见
+      //（用户 2026-09-28 反馈"横屏电影在竖屏手机上只看到右侧竖边"）。
+      '[data-lexflow-layout="rightbar"] { min-width: 0; min-height: 0; overflow: visible !important; position: relative; }',
       '[data-lexflow-layout="rightbar"] { background: var(--dsw-alias-bg-base); z-index: 1; }',
       '[data-lexflow-layout="center"] > *, [data-lexflow-layout="center"] [data-slot="conversation.session"] { max-width: 100%; min-width: 0; }',
       '[data-lexflow-layout="center"] > [class*="wSkVaW_root"] { isolation: isolate; overflow: hidden !important; position: relative; }',
@@ -415,7 +421,20 @@ window.__ModuleLoader__.load({
       // `_7KE1Ra_triggerLabel`／`_7KE1Ra_triggerEffort`／`iWlSmW_triggerIcon`，
       // 使每一段文字各自多出一层圆角底色——表现为"Flash 与 High 之间有空隙、上下两层颜色"。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="JObwrW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="iWlSmW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="_7KE1Ra_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] [class~="bOPqQW_pill"] { -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; border-radius: 999px !important; background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] { height: 0 !important; left: calc((100% - var(--dsh-composer-card-max-width)) / 2) !important; min-height: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; width: var(--dsh-composer-card-max-width) !important; z-index: 2 !important; }',
+      // 信息带（dock）必须与输入框卡片（card）同宽同左：dock 是 root 的绝对定位子项，
+      // 而 card 是 root 的 flex 子项（宽度受列宽约束、并在 root 内水平居中）。
+      // 此前用 `left: calc((100% - var(--dsh-composer-card-max-width)) / 2)` 反推位置，
+      // 该变量含 680px 的 clamp 下限——窗口收窄（如右栏打开令中央列降到 677px）时，
+      // 变量值(712px)大于 card 实际宽度(633px)，公式得出负偏移（实测 -23.5px），
+      // dock 整体左移 39.5px，其内的上下文/统计落到权限触发器上，四个按钮重叠
+      //（用户 2026-09-28 反馈"权限模式、上下文等四个按钮偏离原位且相互重叠"）。
+      // 改为与 card 严格等价的横向几何：card 是 root 的 flex 子项、由 align-items:center
+      // 在内容盒（content box）内居中，宽度为 min(内容盒宽, card-max-width)；
+      // dock 是绝对定位子项，其百分比相对 root 的 padding box。因 root 左右内边距对称，
+      // 「left:50% + translateX(-50%)」的中心与 card 的中心恒等；
+      // 「width: 100% - 2×内边距」在窄窗等于内容盒宽、在宽窗被 max-width 收敛到与 card 同值。
+      // 二者组合下，dock 的左右缘在任何窗口宽度都与 card 一致。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] { height: 0 !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; width: calc(100% - 2 * var(--dsh-composer-side-clearance)) !important; max-width: var(--dsh-composer-card-max-width) !important; min-height: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; z-index: 2 !important; }',
       // 上下文计量器接在权限触发器之后：8(row 内边距) + 28(权限) + 12(间距) = 48px。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 48px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
       // 统计胶囊接在上下文之后：8 + 28(权限) + 12 + 22(上下文) + 12 = 82px。
@@ -1089,7 +1108,14 @@ window.__ModuleLoader__.load({
 						d.narrowExpanded = false;
 					},
 					openRightbar: (d, track, fullscreen) => {
-						if (d.rightbar === 0) d.rightbar = typeof track === "number" && track > 0 ? clampWidth(track, 300, 520) : 360;
+						// 底座把 track 作为「是否为右栏保留一列」的信号传入：窄视口（<768px）下
+						// 面板自动切换为全屏覆盖形态，track 为 false（见 dsh-client-ui-sidebar-right
+						// 的 `const track = shown && !autoFullscreen`）。此时不得再保留列宽——
+						// 否则半屏窗口里 360px 的右栏轨道会挤掉对话区（用户 2026-09-28 反馈：
+						// 半屏时顶部标题栏与底部按钮错乱、右栏内容显示不全）。全屏覆盖形态下面板
+						// 以 100vw 绘制（右栏列已改为 overflow:visible 放行），关掉列轨道不影响其显示。
+						if (track === false) d.rightbar = 0;
+						else if (d.rightbar === 0) d.rightbar = typeof track === "number" && track > 0 ? clampWidth(track, 300, 520) : 360;
 						d.rightbarFullscreen = fullscreen === true;
 					},
 					closeRightbar: (d) => {
