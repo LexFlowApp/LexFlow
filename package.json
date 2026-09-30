@@ -1,7 +1,7 @@
 {
   "name": "lexflow-legal",
   "productName": "LexFlow",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "LexFlow 独立法律工作流桌面应用",
   "main": "out/main/index.js",
   "license": "MIT",
@@ -47,6 +47,7 @@
     "@deepseek-ai/dsh-invariants": "0.2.0-rc.2",
     "@deepseek-ai/dsh-jobs": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-llm-deepseek": "0.2.0-rc.2",
     "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
     "@deepseek-ai/dsh-output-retention": "0.2.0-rc.2",
     "@deepseek-ai/dsh-ptc-runtime": "0.2.0-rc.2",
