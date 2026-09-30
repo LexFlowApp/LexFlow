@@ -210,7 +210,10 @@ test('native client patches supply a single LexFlow sidebar and routed center pa
   assert.match(adapter, /lastSessionId/)
   assert.match(adapter, /sessionRow/)
   assert.match(adapter, /source: ['"]session-row['"]|source: ['"]session-change['"]|lexflow:navigate/)
-  assert.match(adapter, /2147483000/)
+  // 弹窗层级：高于 LexFlow 自有浮层（1000）、低于底座菜单浮层（1100），
+  // 设置页下拉不再被弹窗盖住（2026-09-30 修复；此前为 2147483000）。
+  assert.match(adapter, /z-index: 1050 !important/)
+  assert.doesNotMatch(adapter, /z-index: 2147483000/)
   assert.match(pages, /工作流/)
   assert.doesNotMatch(pages, /标准规范/)
   assert.match(pages, /function Workflow\(/)
@@ -220,7 +223,14 @@ test('native client patches supply a single LexFlow sidebar and routed center pa
   assert.doesNotMatch(pages, /lexflowWorkflowFooterBack/)
   assert.match(pages, /height: 15/)
   assert.doesNotMatch(pages, /jsx\((?:SearchIcon|FilterIcon|PlusIcon)\)/)
-  assert.match(adapter, /sidebar\.lexflow\.nav", \{ wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon: \(id, ownerProps\) => renderPanelIconImpl\(id, ownerProps, renderSlot\) \}/)
+  assert.match(adapter, /sidebar\.lexflow\.nav", \{ wide, startSession, useSidebarPanels, selectPanel, panelInfo, renderPanelIcon: \(id, ownerProps\) => renderPanelIconImpl\(id, ownerProps, renderSlot\) \}/)
+  // 面板入口唯一性：面板行区（SidebarPanelList／SidebarPanelRow 组件）已删除，
+  // 面板入口只由一级导航渲染，避免侧栏出现两个"插件"。
+  assert.doesNotMatch(adapter, /function SidebarPanelList|function SidebarPanelRow/)
+  // 面板选中态：导航行订阅适配层面板观察面（同一份状态，非事件自记）。
+  assert.match(shell, /panelInfo\.subscribe/)
+  // 中心列：选中面板时按面板键渲染 main 键控条目，缺失时回落对话。
+  assert.match(adapter, /entryKey: lexflowPage, fallback: renderSlot\("main", \{\}, \{ entryKey: "conversation" \}\)/)
   assert.match(archive, /pages\.pages\.Workflow/)
   assert.match(workbench, /pages\.pages\.Workbench/)
 })

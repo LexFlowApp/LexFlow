@@ -13,7 +13,11 @@ window.__ModuleLoader__.load({
     const toolButton = { ...button, borderRadius: '6px', fontSize: '12px', lineHeight: 1.3, padding: '4px 8px' }
     const input = { background: 'var(--lexflow-dsw-alias-bg-base)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', padding: '8px 10px' }
     const pages = [['conversation', '新对话'], ['workflow', '工作流'], ['archive', '档案室'], ['workbench', '工作台']]
-    /** 官方装配里常驻的全局面板入口（与官方侧栏的 sidebar.panellist 席位互补）。 */
+    /**
+     * 官方装配里常驻的全局面板入口。
+     * 席位 `sidebar.panellist` 有条目时由席位条目渲染（本项自动让位，避免重复）；
+     * 席位为空（官方管理器未加载）时用本项兜底，保证入口不消失。本区是面板入口的唯一渲染点。
+     */
     const OFFICIAL_PANELS = [['plugins', '插件']]
     const LEXFLOW_TOKENS = {
       '--lexflow-dsw-alias-bg-base': { light: '#faf9f6', dark: '#262523' },
@@ -327,19 +331,22 @@ window.__ModuleLoader__.load({
       return text ?? options?.id ?? ''
     }
 
-    function LexFlowNavigation({ wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon }) {
+    function LexFlowNavigation({ wide, startSession, useSidebarPanels, selectPanel, panelInfo, renderPanelIcon }) {
       const [active, setActive] = React.useState('conversation')
       React.useEffect(() => {
-        const listener = (event) => setActive(event.detail?.page || event.detail?.panel || 'conversation')
+        const listener = (event) => setActive(event.detail?.page || 'conversation')
         window.addEventListener('lexflow:navigate', listener)
         return () => window.removeEventListener('lexflow:navigate', listener)
       }, [])
+      // 面板选中态由适配层的 panelInfo 观察面驱动（与 ctx.layout.panelInfo 是同一份状态）：
+      // 点击面板入口点亮面板行，页面导航清除选中，两处不会各记一份而不同步。
       const [activePanel, setActivePanel] = React.useState(null)
       React.useEffect(() => {
-        const listener = (event) => setActivePanel(event.detail?.panel ?? null)
-        window.addEventListener('lexflow:navigate', listener)
-        return () => window.removeEventListener('lexflow:navigate', listener)
-      }, [])
+        if (typeof panelInfo?.subscribe !== 'function') return undefined
+        const read = (info) => setActivePanel(info?.activePanelId ?? null)
+        try { read(panelInfo.getSnapshot()) } catch { /* 快照读取失败按未选中处理 */ }
+        return panelInfo.subscribe(read)
+      }, [panelInfo])
       // 官方面板行的元信息来自 sidebar.panellist 席位（官方插件在此注册），
       // 图标由同一席位渲染，因此字体与图标都与官方一致。
       const panelRows = typeof useSidebarPanels === 'function' ? useSidebarPanels((value) => value) : []

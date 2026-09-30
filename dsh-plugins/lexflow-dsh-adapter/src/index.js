@@ -268,7 +268,7 @@ export function apply(ctx) {
   const settings = ctx.settings
   const adapter = Object.freeze({
     contractVersion: 2,
-    dshVersion: '0.1.7-alpha.1',
+    dshVersion: '0.2.0-rc.2',
     host: Object.freeze({
       registerRoute(route) {
         return ctx.webServer.register(route)

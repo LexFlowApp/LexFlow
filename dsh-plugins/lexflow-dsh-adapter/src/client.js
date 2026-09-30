@@ -306,7 +306,11 @@ window.__ModuleLoader__.load({
       '[data-lexflow-layout="center"] { isolation: isolate; position: relative; z-index: 0; }',
       '[data-lexflow-modal-open="true"] .lexflowWorkflowTopBack, [data-lexflow-modal-open="true"] .lexflowWorkflowPreviewBack, [data-lexflow-modal-open="true"] .lexflowTopSidebarToggle { visibility: hidden !important; pointer-events: none !important; }',
       '[data-shell-overlay] { isolation: isolate; z-index: 1000 !important; }',
-      '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) { isolation: isolate !important; position: fixed !important; inset: 0 !important; z-index: 2147483000 !important; }',
+      // 弹窗层级 1050：高于 LexFlow 全部自有层级（最高 data-shell-overlay 1000），
+      // 低于底座浮层（菜单／提示为 1100，底座约定菜单显示在弹窗之上）。
+      // 此前为 2147483000，会盖住设置页内的下拉菜单——菜单打开而不可点击（2026-09-30 修复）。
+      // 遮盖目标（侧栏 z3、拖拽竖线 z2、侧栏开关 z30）全部在 1000 以下，1050 仍完整遮盖。
+      '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) { isolation: isolate !important; position: fixed !important; inset: 0 !important; z-index: 1050 !important; }',
       '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) > [role="dialog"][aria-modal="true"] { position: relative !important; z-index: 1 !important; }',
       '[data-lexflow-modal-open="true"] .lexflowFrame_handle, [data-lexflow-modal-open="true"] [class*="wSkVaW_widthHandle"] { pointer-events: none !important; visibility: hidden !important; }',
       // 弹窗打开时一并隐藏运行态 Flowing 条：它是 position: fixed 的浮层（见下方 z-index 规则），
@@ -944,7 +948,7 @@ window.__ModuleLoader__.load({
 					return WorkspacePage ? (0, react_jsx_runtime.jsx)(WorkspacePage, { page, document }) : (0, react_jsx_runtime.jsx)(LexFlowPlaceholder, { page, document });
 				}
 		/** The three-column frame (see module doc). */
-    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel }) {
+    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel, resetPanel }) {
 			const [lexflowPage, setLexFlowPage] = (0, react.useState)("conversation");
 			const [lexflowDocument, setLexFlowDocument] = (0, react.useState)(null);
 			const [fullScreen, setFullScreen] = (0, react.useState)(() => Boolean(window.lexflowWindow?.isFullScreen?.()));
@@ -967,6 +971,8 @@ window.__ModuleLoader__.load({
 						setLexFlowDocument(event.detail?.document ?? null);
 					if (page !== "conversation") actions.closeRightbar();
 					setLexFlowPage(page);
+					// 页面导航（对话或 LexFlow 注册页）清除面板选中态；面板 id 的导航事件保留面板状态。
+					if (typeof resetPanel === "function" && (page === "conversation" || (typeof pageRenderer === "function" && runtime.ui.pages.get(page) !== void 0))) resetPanel();
 				};
 				window.addEventListener("lexflow:navigate", onNavigate);
 				return () => window.removeEventListener("lexflow:navigate", onNavigate);
@@ -1057,7 +1063,7 @@ window.__ModuleLoader__.load({
 							width: cols.sidebar
 						})
 					}),
-                        (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(CenterColumn, { children: lexflowPage !== "conversation" && typeof pageRenderer === "function" && runtime.ui.pages.get(lexflowPage) !== void 0 ? ((0, react_jsx_runtime.jsx)(LexFlowWorkflowPage, { page: lexflowPage, document: lexflowDocument })) : renderSlot("main", {}, { entryKey: "conversation" }) }), lexflowPage === "conversation" && (0, react_jsx_runtime.jsx)(RightbarColumn, { children: renderSlot("rightbar", { width: cols.rightbar, viewportWidth: viewport, canShow: rightbarCanShow }) })] }),
+                        (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(CenterColumn, { children: lexflowPage !== "conversation" && typeof pageRenderer === "function" && runtime.ui.pages.get(lexflowPage) !== void 0 ? ((0, react_jsx_runtime.jsx)(LexFlowWorkflowPage, { page: lexflowPage, document: lexflowDocument })) : renderSlot("main", {}, lexflowPage === "conversation" ? { entryKey: "conversation" } : { entryKey: lexflowPage, fallback: renderSlot("main", {}, { entryKey: "conversation" }) }) }), lexflowPage === "conversation" && (0, react_jsx_runtime.jsx)(RightbarColumn, { children: renderSlot("rightbar", { width: cols.rightbar, viewportWidth: viewport, canShow: rightbarCanShow }) })] }),
 					(0, react_jsx_runtime.jsx)("div", {
 						className: AppFrame_module_css_default.overlayLayer,
 						"data-shell-overlay": true,
@@ -1234,15 +1240,23 @@ window.__ModuleLoader__.load({
 				return this.#navigation.signal;
 			}
 			/**
-			* 底座请求选择某个主面板。对话面板映射为 LexFlow 的对话页；官方面板
-			* （如插件管理器）映射为 LexFlow 的对应页面，未注册的 id 维持原选中态。
-			* 选中结果同时写入 panelInfo，供侧栏行判定选中态。
+			* 底座请求选择某个主面板。选中结果写入 panelInfo（供导航行判定选中态），
+			* 并派发导航事件；中心列据此按当前页面渲染官方面板，
+			* 未注册的 id 由中心列回落渲染对话页。
 			* @param id - 已注册的主面板 id，或 null 表示回到对话。
 			*/
 			selectPanel(id) {
 				const target = id === void 0 || id === null || id === "conversation" ? "conversation" : String(id)
 				this.#setActivePanel(target)
 				window.dispatchEvent(new CustomEvent("lexflow:navigate", { detail: { page: target } }));
+			}
+			/**
+			* 静默复位面板选中态（页面导航离开面板时使用）。只改状态、不派发导航事件，
+			* 避免与页面导航事件形成回环；panelInfo 的订阅方（底座会话列表、标题等）
+			* 照常收到通知，不会残留“面板仍选中”的假状态。
+			*/
+			resetPanel() {
+				this.#setActivePanel(null)
 			}
 			#require() {
 				if (this.#panels === void 0) throw new Error("layout: panel actions not wired (root entry not mounted)");
@@ -1356,8 +1370,8 @@ window.__ModuleLoader__.load({
 					inject: (actions) => {
 						layout.attachPanels(actions);
 						// 面板路由由适配层的 LayoutController 提供，store 的动作集里没有它；
-						// 这里显式注入，供 AppFrame 处理官方面板入口的导航。
-						return { selectPanel: (id) => layout.selectPanel(id) };
+						// 这里显式注入，供 AppFrame 处理官方面板入口的导航与页面导航时的面板复位。
+						return { selectPanel: (id) => layout.selectPanel(id), resetPanel: () => layout.resetPanel() };
 					}
 				}, AppFrame);
 				return () => {
@@ -1409,7 +1423,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:/home/runner/work/deepseek-harness/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.module.css.mjs
-const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.lexflowSidebar_root.lexflowSidebar_collapsed{padding:18px 10px 6px}.lexflowSidebar_root.lexflowSidebar_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.lexflowSidebar_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.lexflowSidebar_fading .lexflowSidebar_footArea{visibility:hidden}.lexflowSidebar_wide{animation:lexflowSidebar_wide-in .2s var(--ds-ease-in-out)}@keyframes lexflowSidebar_wide-in{0%{opacity:0}}.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_regionArea{animation:lexflowSidebar_rail-in .15s var(--ds-ease-in-out) backwards}.lexflowSidebar_railIn .lexflowSidebar_footArea{animation:lexflowSidebar_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes lexflowSidebar_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes lexflowSidebar_rail-fade-in{0%{opacity:0}}.lexflowSidebar_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.lexflowSidebar_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.lexflowSidebar_brandIdentity{align-items:center;gap:8px;min-width:0;height:24px;display:inline-flex}.lexflowSidebar_brandMark{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_brandName{letter-spacing:.04em;align-items:center;gap:6px;min-width:0;height:24px;font-size:18px;font-weight:600;line-height:24px;display:inline-flex}.lexflowSidebar_fallbackBrandName{letter-spacing:0;white-space:nowrap;font-size:17px}.lexflowSidebar_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.lexflowSidebar_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{width:36px;height:36px}.lexflowSidebar_collapsed .lexflowSidebar_toggle .lexflowSidebar_panelIcon{display:none}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_panelIcon{display:inline}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_railMark{display:none}.lexflowSidebar_railMark{justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{color:var(--dsw-alias-label-primary)}.lexflowSidebar_buildRevision{height:16px;color:var(--dsw-alias-label-primary-inverted);background:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code);border-radius:3px;align-items:center;padding:0 4px;font-size:8px;font-weight:500;line-height:16px;display:inline-flex}.lexflowSidebar_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.lexflowSidebar_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.lexflowSidebar_collapsed .lexflowSidebar_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.lexflowSidebar_collapsed .lexflowSidebar_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_newSessionLabel{max-width:0}.lexflowSidebar_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_regionArea{margin-left:0;margin-right:0;padding-left:0}.lexflowSidebar_footArea{flex-direction:column;flex:none;display:flex}.lexflowSidebar_settingsArea,.lexflowSidebar_footerActions{flex:none;width:100%;min-width:0}.lexflowSidebar_footerActions{display:flex}.lexflowSidebar_collapsed .lexflowSidebar_footArea{align-items:center}.lexflowSidebar_collapsed .lexflowSidebar_settingsArea,.lexflowSidebar_collapsed .lexflowSidebar_footerActions{justify-content:center;width:auto;display:flex}.lexflowSidebar_panelList{flex-direction:column;flex:none;gap:4px;margin-bottom:8px;display:flex}.lexflowSidebar_collapsed .lexflowSidebar_panelList{gap:12px;margin-bottom:12px}.lexflowSidebar_panelRow{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:36px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:8px;margin:0 2px;padding:7px 8px;line-height:22px;display:flex;width:100%}.lexflowSidebar_panelRow:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_panelRow:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}.lexflowSidebar_collapsed .lexflowSidebar_panelRow{width:36px;height:36px;color:var(--dsw-alias-label-primary);justify-content:center;margin:0;padding:0}.lexflowSidebar_panelRow.lexflowSidebar_panelActive{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lexflowSidebar_panelGlyph{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_panelTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}@media (prefers-reduced-motion:reduce){.lexflowSidebar_wide,.lexflowSidebar_fading>*,.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_footArea,.lexflowSidebar_railIn .lexflowSidebar_regionArea{transition:none;animation:none}}";
+const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.lexflowSidebar_root.lexflowSidebar_collapsed{padding:18px 10px 6px}.lexflowSidebar_root.lexflowSidebar_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.lexflowSidebar_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.lexflowSidebar_fading .lexflowSidebar_footArea{visibility:hidden}.lexflowSidebar_wide{animation:lexflowSidebar_wide-in .2s var(--ds-ease-in-out)}@keyframes lexflowSidebar_wide-in{0%{opacity:0}}.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_regionArea{animation:lexflowSidebar_rail-in .15s var(--ds-ease-in-out) backwards}.lexflowSidebar_railIn .lexflowSidebar_footArea{animation:lexflowSidebar_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes lexflowSidebar_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes lexflowSidebar_rail-fade-in{0%{opacity:0}}.lexflowSidebar_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.lexflowSidebar_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.lexflowSidebar_brandIdentity{align-items:center;gap:8px;min-width:0;height:24px;display:inline-flex}.lexflowSidebar_brandMark{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_brandName{letter-spacing:.04em;align-items:center;gap:6px;min-width:0;height:24px;font-size:18px;font-weight:600;line-height:24px;display:inline-flex}.lexflowSidebar_fallbackBrandName{letter-spacing:0;white-space:nowrap;font-size:17px}.lexflowSidebar_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.lexflowSidebar_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{width:36px;height:36px}.lexflowSidebar_collapsed .lexflowSidebar_toggle .lexflowSidebar_panelIcon{display:none}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_panelIcon{display:inline}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_railMark{display:none}.lexflowSidebar_railMark{justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{color:var(--dsw-alias-label-primary)}.lexflowSidebar_buildRevision{height:16px;color:var(--dsw-alias-label-primary-inverted);background:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code);border-radius:3px;align-items:center;padding:0 4px;font-size:8px;font-weight:500;line-height:16px;display:inline-flex}.lexflowSidebar_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.lexflowSidebar_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.lexflowSidebar_collapsed .lexflowSidebar_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.lexflowSidebar_collapsed .lexflowSidebar_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_newSessionLabel{max-width:0}.lexflowSidebar_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_regionArea{margin-left:0;margin-right:0;padding-left:0}.lexflowSidebar_footArea{flex-direction:column;flex:none;display:flex}.lexflowSidebar_settingsArea,.lexflowSidebar_footerActions{flex:none;width:100%;min-width:0}.lexflowSidebar_footerActions{display:flex}.lexflowSidebar_collapsed .lexflowSidebar_footArea{align-items:center}.lexflowSidebar_collapsed .lexflowSidebar_settingsArea,.lexflowSidebar_collapsed .lexflowSidebar_footerActions{justify-content:center;width:auto;display:flex}@media (prefers-reduced-motion:reduce){.lexflowSidebar_wide,.lexflowSidebar_fading>*,.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_footArea,.lexflowSidebar_railIn .lexflowSidebar_regionArea{transition:none;animation:none}}";
 		const tagId = "@deepseek/ui-shell/SidebarRoot.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -1440,11 +1454,6 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 			"railIn": "lexflowSidebar_railIn",
 			"railMark": "lexflowSidebar_railMark",
 			"regionArea": "lexflowSidebar_regionArea",
-			"panelActive": "lexflowSidebar_panelActive",
-			"panelGlyph": "lexflowSidebar_panelGlyph",
-			"panelList": "lexflowSidebar_panelList",
-			"panelRow": "lexflowSidebar_panelRow",
-			"panelTitle": "lexflowSidebar_panelTitle",
 			"root": "lexflowSidebar_root",
 			"settingsArea": "lexflowSidebar_settingsArea",
 			"toggle": "lexflowSidebar_toggle",
@@ -1502,73 +1511,6 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
         const PluginIcon = icon(id === "plugins" ? "IconPluginPinwheelOutlineRegular" : "IconWarningOutlineRegular");
         return (0, react_jsx_runtime.jsx)(PluginIcon, { size });
       };
-		/**
-		 * 一行官方面板入口。选中态与切换都走同一份 panelInfo／selectPanel，
-		 * 因此与官方侧边栏的 PanelRow 行为一致（含 aria-current）。
-		 * @param props - id、标签、是否宽栏、面板信息订阅与切换回调。
-		 * @returns 面板行元素。
-		 */
-		/**
-		 * 面板行的渲染入口。注入面缺席时返回空数组，绝不抛错——侧栏是全局壳，
-		 * 任何单个席位异常都不应让整条侧栏消失。
-		 * @param useSidebarPanels - 适配层注入的订阅钩子。
-		 * @returns 面板行列表。
-		 */
-		function useSidebarPanelRows(useSidebarPanels) {
-			if (typeof useSidebarPanels !== "function") return [];
-			try { return useSidebarPanels((rows) => rows) ?? []; } catch { return []; }
-		}
-		function SidebarPanelRow({ id, label, wide, subscribePanelInfo, selectPanel, renderPanelIcon }) {
-			const [active, setActive] = (0, react.useState)(false);
-			(0, react.useEffect)(() => {
-				if (typeof subscribePanelInfo !== "function") return void 0;
-				const read = (info) => setActive((info?.activePanelId ?? null) === id);
-				read(void 0);
-				return subscribePanelInfo(read);
-			}, [id, subscribePanelInfo]);
-			return (0, react_jsx_runtime.jsxs)("button", {
-				type: "button",
-				className: clsx(SidebarRoot_module_css_default.panelRow, active && SidebarRoot_module_css_default.panelActive),
-				"aria-label": label,
-				"aria-current": active ? "page" : void 0,
-				onClick: () => selectPanel(id),
-				children: [(0, react_jsx_runtime.jsx)("span", {
-					className: SidebarRoot_module_css_default.panelGlyph,
-					"aria-hidden": "true",
-					children: (() => {
-						const size = wide ? 16 : 18;
-						const rendered = typeof renderPanelIcon === "function" ? renderPanelIcon(id, { size, active }) : null;
-						if (rendered !== null && rendered !== void 0 && rendered !== false) return rendered;
-						// 席位无人注册时回退到官方插件图元，保证"插件"入口始终有官方图标。
-						const PluginIcon = icon(id === "plugins" ? "IconPluginPinwheelOutlineRegular" : "IconWarningOutlineRegular");
-						return (0, react_jsx_runtime.jsx)(PluginIcon, { size });
-					})()
-				}), wide && (0, react_jsx_runtime.jsx)("span", {
-					className: SidebarRoot_module_css_default.panelTitle,
-					children: label
-				})]
-			});
-		}
-		/**
-		 * 官方面板行区。没有注册项时整区不渲染，与官方侧边栏一致。
-		 * @param props - 面板列表、宽栏状态、订阅与切换回调。
-		 * @returns 面板行列表，或 null。
-		 */
-		function SidebarPanelList({ wide, panels, subscribePanelInfo, selectPanel, renderPanelIcon }) {
-			if (panels.length === 0) return null;
-			return (0, react_jsx_runtime.jsx)("nav", {
-				className: SidebarRoot_module_css_default.panelList,
-				"aria-label": "LexFlow",
-				children: panels.map((panel) => (0, react_jsx_runtime.jsx)(SidebarPanelRow, {
-					id: panel.id,
-					label: panel.label,
-					wide,
-					subscribePanelInfo,
-					selectPanel,
-					renderPanelIcon
-				}, panel.id))
-			});
-		}
 		function SidebarRoot({ collapsed, width, startSession, toggleSidebar, useSidebarPanels, selectPanel, panelInfo, t, renderSlot, renderPanelIcon }) {
 			const [settled, setSettled] = (0, react.useState)(collapsed);
 			(0, react.useEffect)(() => {
@@ -1656,13 +1598,7 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 					}),
 					(0, react_jsx_runtime.jsx)("div", {
 						className: SidebarRoot_module_css_default.lexflowNavigation,
-						children: renderSlot("sidebar.lexflow.nav", { wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, renderSlot) })
-					}), (0, react_jsx_runtime.jsx)(SidebarPanelList, {
-						wide,
-						panels: useSidebarPanelRows(useSidebarPanels),
-						subscribePanelInfo: panelInfo,
-						selectPanel,
-						renderPanelIcon: typeof renderPanelIcon === "function" ? renderPanelIcon : (id, ownerProps) => renderSlot("sidebar.panellist", ownerProps ?? {}, { only: id })
+						children: renderSlot("sidebar.lexflow.nav", { wide, startSession, useSidebarPanels, selectPanel, panelInfo, renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, renderSlot) })
 					}), (0, react_jsx_runtime.jsx)("div", {
 						className: SidebarRoot_module_css_default.regionArea,
 						children: renderSlot("sidebar.workspaces", {
@@ -1729,13 +1665,15 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 			toggleSidebar: () => {
           layout.toggleSidebar();
 			},
-			// 官方面板行：条目来自 sidebar.panellist 席位（官方插件在此注册），
+			// 一级导航的官方面板条目：条目来自 sidebar.panellist 席位（官方插件在此注册），
 			// 选中态与切换走同一份 panelInfo 与 selectPanel，避免出现两个真相源。
 			useSidebarPanels: (selector) => runtime.ui.sidebarPanelRows(selector),
 			// 图标由侧栏模块实现并下传（那里才有 renderSlot 与官方席位通道）。
 			renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, renderSlot),
 			selectPanel: (id) => layout.selectPanel(id),
-			panelInfo: (listener) => layout.subscribePanelInfo(listener),
+			// 面板选中态的观察面（getSnapshot/subscribe）：导航行据此显示选中态，
+			// 与 ctx.layout.panelInfo 是同一份状态，避免出现两个真相源。
+			panelInfo: layout.panelInfo,
 		});
         runtime.lifecycle.effect(() => slots.register({
 				name: "sidebar",
@@ -1757,9 +1695,9 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 						kind: "single",
 						scope: "root"
 					},
-					// 官方面板行席位：官方插件（如 ui-plugin-manager）在这里注册图标行，
-					// 官方侧边栏的 PanelRow 是该席位的消费者。LexFlow 侧栏保持自有结构，
-					// 但必须声明并渲染它，否则这些行没有落点、对应面板也点不开。
+					// 官方面板席位：官方插件（如 ui-plugin-manager）在这里注册条目。
+					// LexFlow 侧栏保持自有结构，但必须声明它：一级导航据此渲染面板入口，
+					// 图标也经同一席位取官方图元。
 					"sidebar.panellist": {
 						kind: "list",
 						scope: "root"
@@ -2009,7 +1947,7 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
       })
       const runtime = Object.freeze({
         contractVersion: CONTRACT_VERSION,
-        dshVersion: '0.1.7-alpha.1',
+        dshVersion: '0.2.0-rc.2',
         lifecycle: Object.freeze({
           effect: (factory, label) => ctx.effect(factory, label),
           on: (name, listener) => typeof ctx.on === 'function' ? ctx.on(name, listener) : () => {},
