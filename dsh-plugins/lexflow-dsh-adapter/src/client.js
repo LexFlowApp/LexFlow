@@ -152,6 +152,9 @@ window.__ModuleLoader__.load({
         register: (...args) => call(raw, 'register', args),
         inject: (...args) => call(raw, 'inject', args),
         entries: (...args) => call(raw, 'entries', args),
+        // 侧边栏面板行需要读取某席位已注册的条目元信息（id/order/label），
+        // 底座侧边栏用自己的 slots 服务这么做；适配层暴露同一能力给产品壳。
+        entriesOfSlot: (...args) => call(raw, 'entriesOfSlot', args),
         subscribe: (...args) => call(raw, 'subscribe', args),
         getVersion: (...args) => call(raw, 'getVersion', args),
       })
@@ -310,7 +313,7 @@ window.__ModuleLoader__.load({
       // 与遮罩、弹窗卡片的层叠关系取决于底座当时的结构，逐个对层级既不可靠也无意义——
       // 弹窗期间用户的注意力在弹窗内，过程指示显示在遮罩下或遮罩上都是噪音。直接隐藏最干净。
       // 只隐藏运行态（data-lexflow-flowing），完成态过程条属于对话正文，留在原位。
-      '[data-lexflow-modal-open="true"] [class*="l_V-RG_root"][data-lexflow-flowing="true"] { display: none !important; }',
+      '[data-lexflow-modal-open="true"] [data-chat-running][data-lexflow-flowing="true"] { display: none !important; }',
       // 0.1.5 底座把会话日志控件从“下载按钮”改成“更多操作”菜单：类名由 sessionLogButton 变为 *moreButton，
       // 无障碍标签变为“更多操作”“More actions”，且不再下发 data-id/data-slot-id。
       // 依据 0.1.5-rc.1 产物与隔离实验（dsh-session-log-export/lib/client.js 的 register 选项与按钮属性）确定匹配方式。
@@ -493,29 +496,29 @@ window.__ModuleLoader__.load({
       // 该 label 常驻、且运行态与完成态共用同一类名（0.1.7 的 data-phase 只剩 hero/settling/active，
       // 此处也没有仅运行态才有的 data-* 标记），纯类名匹配会连"已完成工作/用时 …"一起上色，
       // 故新分支改由 sweep() 给运行态节点打 data-lexflow-flowing 后再上色；旧分支原样保留以便回滚。
-      '[class*="_turnStatus"]:not([class*="_turnStatusClock"]) { background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
+      '[data-chat-running], [data-chat-flow-kind="turn-process"] { background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
       // 运行态文案的替换不通过改写文本实现：该文案由 React 持有并每秒随用时重渲染，
       // 改写 textContent 会被覆盖回「深度求索中…」（0.1.5 时代的同类实现同样复现回退）。
       // 这里只让 sweep() 打 data-lexflow-flowing 标记，由 CSS 把原文收为零字号，
       // 用 ::after 呈现 Flowing...，React 如何重渲染都不影响显示。
-      '[class*="l_V-RG_root"][data-lexflow-flowing="true"] [class*="l_V-RG_label"] { font-size: 0 !important; }',
-      '[class*="l_V-RG_root"][data-lexflow-flowing="true"] [class*="l_V-RG_label"]::after { content: "Flowing..."; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px); line-height: calc(24px + var(--dsh-content-font-delta, 0px)); background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
+      '[data-chat-running][data-lexflow-flowing="true"] { font-size: 0 !important; }',
+      '[data-chat-running][data-lexflow-flowing="true"]::after { content: "Flowing..."; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px); line-height: calc(24px + var(--dsh-content-font-delta, 0px)); background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
       // 0.1.7 无独立计时元素：用时由 formatLiveRunDuration 拼进 label 文案（"深度求索中，用时{duration}"），
       // 不再有 _turnStatusClock 的对应节点，故此处只保留旧规则供 0.1.5 回滚。
-      '[class*="_turnStatusClock"] { background: none !important; color: #8b746c !important; -webkit-text-fill-color: #8b746c !important; }',
+      '[data-chat-running] [class*="visuallyHidden"], [data-chat-running] [class*="_turnStatusClock"] { background: none !important; color: #8b746c !important; -webkit-text-fill-color: #8b746c !important; }',
       // 过程条不显示下缘横线（运行态与完成态均不显示）。
-      '[class*="l_V-RG_root"] { border-bottom: none !important; }',
+      '[data-chat-running], [data-chat-flow-kind="turn-process"] { border-bottom: none !important; }',
       // 运行态过程条回到对话流内：它本身就是流里的一个节点（槽位 conversation.chat.node、
       // 键 turn-process，是消息列 EvIC1a_column 的直接子项），此前被 position:fixed 从流里
       // 拎出来、按输入区几何钉在左下，只要输入区形态一变就会错位。改为让它留在流内末尾：
       // order 推到最末，随内容滚动；上滚时随内容滚出视野（产品确认如此）。不再需要任何
       // 坐标变量与 sweep 里的几何计算。
-      '[class*="l_V-RG_root"][data-lexflow-flowing="true"] { height: 24px !important; padding-bottom: 0 !important; width: auto !important; }',
+      '[data-chat-running][data-lexflow-flowing="true"] { height: 24px !important; padding-bottom: 0 !important; width: auto !important; }',
       // 排序标记打在流节点外壳上（sweep 依据 :has 关系设置），比 :has 选择器更稳：
       // 无论该节点是消息列的直接子项，还是被折叠组包住，order 都能把它推到所在容器的末尾。
       '[data-chat-flow-kind="turn-process"][data-lexflow-flowing-order="true"] { order: 99 !important; }',
       // 鼠标点击过程条（含"用时"）不显示焦点框；键盘 Tab 到达时仍保留可见焦点。
-      '[class*="l_V-RG_root"]:focus:not(:focus-visible) { outline: none !important; }',
+      '[data-chat-running]:focus:not(:focus-visible) { outline: none !important; }',
       '#lexflow-window-drag-bar { -webkit-app-region: drag; height: 22px; left: 0; position: fixed; right: 0; top: 0; z-index: 5; }',
       'div[class*="logoRow"] button { -webkit-app-region: no-drag; }',
       // 0.1.5 把封面标题容纳类从 headlineText 改为 titleGroup（标题与“预览版”标签同层）。
@@ -573,10 +576,17 @@ window.__ModuleLoader__.load({
         // （"深度求索中"／"深度求索中，用时N秒"／"Deep diving…"），完成态为"已完成工作／用时 …"等。
         // 标记只用于把运行态与完成态区分开（上色、文案、排到流末）；位置完全交给 CSS 在流内解决，
         // 不再读取任何几何坐标——此前按输入区算坐标的做法会被输入区改版带偏。
-        for (const root of document.querySelectorAll('[class*="l_V-RG_root"]')) {
-          const label = root.querySelector('[class*="l_V-RG_label"]')
-          const text = (label?.textContent ?? '').trim()
-          const running = text.startsWith('深度求索中') || text.startsWith('Deep diving')
+        // 底座 0.2.0 的运行态条是带稳定数据属性 data-chat-running 的容器；0.1.7 用
+        // data-chat-flow-kind="turn-process" 标识同一节点。两者都不是生成类名，
+        // 因此不再随底座改名而失效；先清掉上一轮标记，避免完成态残留 Flowing 文案。
+        for (const stale of document.querySelectorAll('[data-lexflow-flowing]')) {
+          if (!stale.hasAttribute('data-chat-running') && stale.getAttribute('data-chat-flow-kind') !== 'turn-process') {
+            stale.removeAttribute('data-lexflow-flowing')
+          }
+        }
+        for (const root of document.querySelectorAll('[data-chat-running], [data-chat-flow-kind="turn-process"]')) {
+          // 仅运行态保留标记：完成态的过程条不带 data-chat-running。
+          const running = root.hasAttribute('data-chat-running')
           if (running) root.setAttribute('data-lexflow-flowing', 'true')
           else root.removeAttribute('data-lexflow-flowing')
           // 排序标记打在流节点外壳上：外壳是流容器的子项，order 才能生效；
@@ -934,7 +944,7 @@ window.__ModuleLoader__.load({
 					return WorkspacePage ? (0, react_jsx_runtime.jsx)(WorkspacePage, { page, document }) : (0, react_jsx_runtime.jsx)(LexFlowPlaceholder, { page, document });
 				}
 		/** The three-column frame (see module doc). */
-    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider }) {
+    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel }) {
 			const [lexflowPage, setLexFlowPage] = (0, react.useState)("conversation");
 			const [lexflowDocument, setLexFlowDocument] = (0, react.useState)(null);
 			const [fullScreen, setFullScreen] = (0, react.useState)(() => Boolean(window.lexflowWindow?.isFullScreen?.()));
@@ -944,6 +954,15 @@ window.__ModuleLoader__.load({
 			}, []);
 			(0, react.useEffect)(() => {
 				const onNavigate = (event) => {
+					// 官方面板入口（如插件管理器）只带 panel，不带 page：
+					// 交给面板路由统一处理，中心列随后按 main 键控条目渲染该面板。
+					const panel = event.detail?.panel;
+					if (typeof panel === "string" && panel !== "") {
+						setLexFlowDocument(null);
+						actions.closeRightbar();
+						selectPanel(panel);
+						return;
+					}
 					const page = event.detail?.page ?? "conversation";
 						setLexFlowDocument(event.detail?.document ?? null);
 					if (page !== "conversation") actions.closeRightbar();
@@ -1038,7 +1057,7 @@ window.__ModuleLoader__.load({
 							width: cols.sidebar
 						})
 					}),
-                        (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(CenterColumn, { children: lexflowPage === "conversation" ? renderSlot("main", {}, { entryKey: "conversation" }) : lexflowPage === "workflow" ? (0, react_jsx_runtime.jsx)(LexFlowWorkflowPage, { document: lexflowDocument }) : (0, react_jsx_runtime.jsx)(LexFlowPlaceholder, { page: lexflowPage, document: lexflowDocument }) }), lexflowPage === "conversation" && (0, react_jsx_runtime.jsx)(RightbarColumn, { children: renderSlot("rightbar", { width: cols.rightbar, viewportWidth: viewport, canShow: rightbarCanShow }) })] }),
+                        (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)(CenterColumn, { children: lexflowPage !== "conversation" && typeof pageRenderer === "function" && runtime.ui.pages.get(lexflowPage) !== void 0 ? ((0, react_jsx_runtime.jsx)(LexFlowWorkflowPage, { page: lexflowPage, document: lexflowDocument })) : renderSlot("main", {}, { entryKey: "conversation" }) }), lexflowPage === "conversation" && (0, react_jsx_runtime.jsx)(RightbarColumn, { children: renderSlot("rightbar", { width: cols.rightbar, viewportWidth: viewport, canShow: rightbarCanShow }) })] }),
 					(0, react_jsx_runtime.jsx)("div", {
 						className: AppFrame_module_css_default.overlayLayer,
 						"data-shell-overlay": true,
@@ -1132,6 +1151,44 @@ window.__ModuleLoader__.load({
 			#panels;
 			#navigation;
 			/**
+			 * 当前选中的主面板。null 表示对话面板（底座以 activePanelId === null
+			 * 表示"对话被选中"，右侧边栏据此判定是否渲染）。官方插件（如
+			 * dsh-client-ui-plugin-manager）会订阅它来决定侧栏行的选中态，
+			 * 因此这里必须是真实可观察值，不能像以前那样给出静态快照。
+			 */
+			#activePanelId = null;
+			#panelListeners = new Set();
+			/**
+			 * 面板信息的可观察面（ctx.layout.panelInfo）。官方插件按
+			 * `ctx.layout.panelInfo.getSnapshot()` 与 `.subscribe()` 使用它，
+			 * 因此这里提供与方法同名的可观察对象，而不是原始快照。
+			 */
+			panelInfo = Object.freeze({
+				getSnapshot: () => this.getPanelInfo(),
+				subscribe: (listener) => this.subscribePanelInfo(listener),
+			});
+			/** @returns 当前面板信息快照。 */
+			getPanelInfo() {
+				return Object.freeze({ activePanelId: this.#activePanelId });
+			}
+			/**
+			 * 订阅面板信息变化。
+			 * @param listener - 变化回调。
+			 * @returns 取消订阅的函数。
+			 */
+			subscribePanelInfo(listener) {
+				this.#panelListeners.add(listener);
+				return () => { this.#panelListeners.delete(listener) };
+			}
+			#setActivePanel(id) {
+				const next = id === void 0 || id === null || id === "conversation" ? null : id;
+				if (next === this.#activePanelId) return;
+				this.#activePanelId = next;
+				for (const listener of this.#panelListeners) {
+					try { listener(this.getPanelInfo()) } catch { /* 订阅者异常不得中断导航 */ }
+				}
+			}
+			/**
 			* Adopt the root entry's bound store actions. Called from the root
 			* registration's inject hook (a sanctioned assembly side effect), so the
 			* face is live from the entry's first render; on entry re-register the
@@ -1177,13 +1234,15 @@ window.__ModuleLoader__.load({
 				return this.#navigation.signal;
 			}
 			/**
-			* 底座请求选择某个主面板。LexFlow 的中心列固定承载对话面板，因此只处理对话面板的选中，
-			* 其余全局面板（底座自带的文件、轨迹等入口）在 LexFlow 装配中不参与，忽略即可。
+			* 底座请求选择某个主面板。对话面板映射为 LexFlow 的对话页；官方面板
+			* （如插件管理器）映射为 LexFlow 的对应页面，未注册的 id 维持原选中态。
+			* 选中结果同时写入 panelInfo，供侧栏行判定选中态。
+			* @param id - 已注册的主面板 id，或 null 表示回到对话。
 			*/
 			selectPanel(id) {
-				if (id === void 0 || id === null || id === "conversation") {
-					window.dispatchEvent(new CustomEvent("lexflow:navigate", { detail: { page: "conversation" } }));
-				}
+				const target = id === void 0 || id === null || id === "conversation" ? "conversation" : String(id)
+				this.#setActivePanel(target)
+				window.dispatchEvent(new CustomEvent("lexflow:navigate", { detail: { page: target } }));
 			}
 			#require() {
 				if (this.#panels === void 0) throw new Error("layout: panel actions not wired (root entry not mounted)");
@@ -1263,14 +1322,14 @@ window.__ModuleLoader__.load({
         const layout = new LayoutController();
 				runtime.lifecycle.effect(() => {
 					const disposeService = runtime.ui.provideLayout(layout);
-					// 底座右侧边栏读取 root 标准席位里的面板信息；LexFlow 的中心列固定承载对话面板。
+					// 底座右侧边栏与官方面板行都读取 root 标准席位里的面板信息。
 					// 底座以 activePanelId === null 表示"对话面板被选中"（见 0.1.5 的 RightbarRoot 判定），
-					// 因此这里必须给 null，否则右侧边栏整棵子树不渲染。
-					const panelInfoSnapshot = Object.freeze({ activePanelId: null });
+					// 因此初始值必须是 null，否则右侧边栏整棵子树不渲染；选中官方面板后
+					// 该值随 LayoutController 的真实状态变化，侧栏行据此显示选中态。
 					const disposeRootHooks = runtime.ui.provideRootHooks({
 						panelInfo: {
-							getSnapshot: () => panelInfoSnapshot,
-							subscribe: () => () => {}
+							getSnapshot: () => layout.getPanelInfo(),
+							subscribe: (listener) => layout.subscribePanelInfo(listener)
 						}
 					});
             const disposeRegistration = slots.register({
@@ -1296,7 +1355,9 @@ window.__ModuleLoader__.load({
 					store: createLayoutStore,
 					inject: (actions) => {
 						layout.attachPanels(actions);
-						return {};
+						// 面板路由由适配层的 LayoutController 提供，store 的动作集里没有它；
+						// 这里显式注入，供 AppFrame 处理官方面板入口的导航。
+						return { selectPanel: (id) => layout.selectPanel(id) };
 					}
 				}, AppFrame);
 				return () => {
@@ -1348,7 +1409,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region \0dsh-css:/home/runner/work/deepseek-harness/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.module.css.mjs
-const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.lexflowSidebar_root.lexflowSidebar_collapsed{padding:18px 10px 6px}.lexflowSidebar_root.lexflowSidebar_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.lexflowSidebar_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.lexflowSidebar_fading .lexflowSidebar_footArea{visibility:hidden}.lexflowSidebar_wide{animation:lexflowSidebar_wide-in .2s var(--ds-ease-in-out)}@keyframes lexflowSidebar_wide-in{0%{opacity:0}}.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_regionArea{animation:lexflowSidebar_rail-in .15s var(--ds-ease-in-out) backwards}.lexflowSidebar_railIn .lexflowSidebar_footArea{animation:lexflowSidebar_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes lexflowSidebar_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes lexflowSidebar_rail-fade-in{0%{opacity:0}}.lexflowSidebar_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.lexflowSidebar_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.lexflowSidebar_brandIdentity{align-items:center;gap:8px;min-width:0;height:24px;display:inline-flex}.lexflowSidebar_brandMark{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_brandName{letter-spacing:.04em;align-items:center;gap:6px;min-width:0;height:24px;font-size:18px;font-weight:600;line-height:24px;display:inline-flex}.lexflowSidebar_fallbackBrandName{letter-spacing:0;white-space:nowrap;font-size:17px}.lexflowSidebar_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.lexflowSidebar_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{width:36px;height:36px}.lexflowSidebar_collapsed .lexflowSidebar_toggle .lexflowSidebar_panelIcon{display:none}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_panelIcon{display:inline}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_railMark{display:none}.lexflowSidebar_railMark{justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{color:var(--dsw-alias-label-primary)}.lexflowSidebar_buildRevision{height:16px;color:var(--dsw-alias-label-primary-inverted);background:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code);border-radius:3px;align-items:center;padding:0 4px;font-size:8px;font-weight:500;line-height:16px;display:inline-flex}.lexflowSidebar_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.lexflowSidebar_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.lexflowSidebar_collapsed .lexflowSidebar_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.lexflowSidebar_collapsed .lexflowSidebar_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_newSessionLabel{max-width:0}.lexflowSidebar_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_regionArea{margin-left:0;margin-right:0;padding-left:0}.lexflowSidebar_footArea{flex-direction:column;flex:none;display:flex}.lexflowSidebar_settingsArea,.lexflowSidebar_footerActions{flex:none;width:100%;min-width:0}.lexflowSidebar_footerActions{display:flex}.lexflowSidebar_collapsed .lexflowSidebar_footArea{align-items:center}.lexflowSidebar_collapsed .lexflowSidebar_settingsArea,.lexflowSidebar_collapsed .lexflowSidebar_footerActions{justify-content:center;width:auto;display:flex}@media (prefers-reduced-motion:reduce){.lexflowSidebar_wide,.lexflowSidebar_fading>*,.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_footArea,.lexflowSidebar_railIn .lexflowSidebar_regionArea{transition:none;animation:none}}";
+const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;padding:6px var(--dsh-sidebar-inline-padding);box-sizing:border-box;background:var(--dsw-specific-sidebar-fill);color:var(--dsw-alias-label-primary);--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);flex-direction:column;font-size:14px;display:flex}.lexflowSidebar_root.lexflowSidebar_collapsed{padding:18px 10px 6px}.lexflowSidebar_root.lexflowSidebar_quietBars{--dsh-scrollbar-thumb:transparent;--dsh-scrollbar-thumb-hover:transparent}.lexflowSidebar_fading>*{opacity:0;transition:opacity .15s var(--ds-ease-in-out)}.lexflowSidebar_fading .lexflowSidebar_footArea{visibility:hidden}.lexflowSidebar_wide{animation:lexflowSidebar_wide-in .2s var(--ds-ease-in-out)}@keyframes lexflowSidebar_wide-in{0%{opacity:0}}.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_regionArea{animation:lexflowSidebar_rail-in .15s var(--ds-ease-in-out) backwards}.lexflowSidebar_railIn .lexflowSidebar_footArea{animation:lexflowSidebar_rail-fade-in .15s var(--ds-ease-in-out) backwards}@keyframes lexflowSidebar_rail-in{0%{opacity:0;transform:translate(49px)}}@keyframes lexflowSidebar_rail-fade-in{0%{opacity:0}}.lexflowSidebar_logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}.lexflowSidebar_brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}.lexflowSidebar_brandIdentity{align-items:center;gap:8px;min-width:0;height:24px;display:inline-flex}.lexflowSidebar_brandMark{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_brandName{letter-spacing:.04em;align-items:center;gap:6px;min-width:0;height:24px;font-size:18px;font-weight:600;line-height:24px;display:inline-flex}.lexflowSidebar_fallbackBrandName{letter-spacing:0;white-space:nowrap;font-size:17px}.lexflowSidebar_iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-radius:50%;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}.lexflowSidebar_iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{width:36px;height:36px}.lexflowSidebar_collapsed .lexflowSidebar_toggle .lexflowSidebar_panelIcon{display:none}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_panelIcon{display:inline}.lexflowSidebar_collapsed .lexflowSidebar_toggle:hover .lexflowSidebar_railMark{display:none}.lexflowSidebar_railMark{justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_collapsed .lexflowSidebar_iconButton{color:var(--dsw-alias-label-primary)}.lexflowSidebar_buildRevision{height:16px;color:var(--dsw-alias-label-primary-inverted);background:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code);border-radius:3px;align-items:center;padding:0 4px;font-size:8px;font-weight:500;line-height:16px;display:inline-flex}.lexflowSidebar_newSession{box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;border-radius:12px;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}.lexflowSidebar_newSession:hover{background:var(--dsw-alias-button-floating-hover)}.lexflowSidebar_collapsed .lexflowSidebar_newSession{background:0 0;border-color:#0000;align-self:flex-start;gap:0;width:36px;height:36px;margin:0 0 12px;padding:0}.lexflowSidebar_collapsed .lexflowSidebar_newSession:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_newSessionLabel{white-space:nowrap;max-width:200px;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_newSessionLabel{max-width:0}.lexflowSidebar_regionArea{min-height:0;margin-left:-4px;margin-right:calc(-1 * var(--dsh-sidebar-inline-padding));flex-direction:column;flex:1;padding-left:4px;display:flex;overflow:hidden}.lexflowSidebar_collapsed .lexflowSidebar_regionArea{margin-left:0;margin-right:0;padding-left:0}.lexflowSidebar_footArea{flex-direction:column;flex:none;display:flex}.lexflowSidebar_settingsArea,.lexflowSidebar_footerActions{flex:none;width:100%;min-width:0}.lexflowSidebar_footerActions{display:flex}.lexflowSidebar_collapsed .lexflowSidebar_footArea{align-items:center}.lexflowSidebar_collapsed .lexflowSidebar_settingsArea,.lexflowSidebar_collapsed .lexflowSidebar_footerActions{justify-content:center;width:auto;display:flex}.lexflowSidebar_panelList{flex-direction:column;flex:none;gap:4px;margin-bottom:8px;display:flex}.lexflowSidebar_collapsed .lexflowSidebar_panelList{gap:12px;margin-bottom:12px}.lexflowSidebar_panelRow{box-sizing:border-box;border-radius:var(--dsw-radius-md);min-height:36px;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer;background:0 0;border:none;align-items:center;gap:8px;margin:0 2px;padding:7px 8px;line-height:22px;display:flex;width:100%}.lexflowSidebar_panelRow:hover{background:var(--dsw-alias-interactive-bg-hover)}.lexflowSidebar_panelRow:focus-visible{outline:var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}.lexflowSidebar_collapsed .lexflowSidebar_panelRow{width:36px;height:36px;color:var(--dsw-alias-label-primary);justify-content:center;margin:0;padding:0}.lexflowSidebar_panelRow.lexflowSidebar_panelActive{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}.lexflowSidebar_panelGlyph{flex:none;justify-content:center;align-items:center;display:inline-flex}.lexflowSidebar_panelTitle{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}@media (prefers-reduced-motion:reduce){.lexflowSidebar_wide,.lexflowSidebar_fading>*,.lexflowSidebar_railIn .lexflowSidebar_iconButton,.lexflowSidebar_railIn .lexflowSidebar_newSession,.lexflowSidebar_railIn .lexflowSidebar_footArea,.lexflowSidebar_railIn .lexflowSidebar_regionArea{transition:none;animation:none}}";
 		const tagId = "@deepseek/ui-shell/SidebarRoot.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -1379,6 +1440,11 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 			"railIn": "lexflowSidebar_railIn",
 			"railMark": "lexflowSidebar_railMark",
 			"regionArea": "lexflowSidebar_regionArea",
+			"panelActive": "lexflowSidebar_panelActive",
+			"panelGlyph": "lexflowSidebar_panelGlyph",
+			"panelList": "lexflowSidebar_panelList",
+			"panelRow": "lexflowSidebar_panelRow",
+			"panelTitle": "lexflowSidebar_panelTitle",
 			"root": "lexflowSidebar_root",
 			"settingsArea": "lexflowSidebar_settingsArea",
 			"toggle": "lexflowSidebar_toggle",
@@ -1418,7 +1484,92 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 		* @param props - composed slot props (runtime share + injected callbacks, contract/slots.ts).
 		* @returns the sidebar element tree.
 		*/
-		function SidebarRoot({ collapsed, width, startSession, toggleSidebar, t, renderSlot }) {
+      /**
+       * 官方面板行的图标。
+       *
+       * 先向官方 sidebar.panellist 席位索取（官方插件注册了就有官方图标）；
+       * 席位没有该 id 时回退到官方插件图元；再拿不到就用官方图元的同名图形兜底。
+       * 实现在这里而不是注入面：只有本作用域持有 renderSlot 与图元访问。
+       * @param id - 面板 id。
+       * @param ownerProps - 席位的尺寸与选中态。
+       * @returns 图标元素。
+       */
+      const renderPanelIconImpl = (id, ownerProps, renderSlot) => {
+        const owner = ownerProps ?? {};
+        const rendered = typeof renderSlot === "function" ? renderSlot("sidebar.panellist", owner, { only: id }) : null;
+        if (rendered !== null && rendered !== void 0 && rendered !== false) return rendered;
+        const size = owner.size ?? 16;
+        const PluginIcon = icon(id === "plugins" ? "IconPluginPinwheelOutlineRegular" : "IconWarningOutlineRegular");
+        return (0, react_jsx_runtime.jsx)(PluginIcon, { size });
+      };
+		/**
+		 * 一行官方面板入口。选中态与切换都走同一份 panelInfo／selectPanel，
+		 * 因此与官方侧边栏的 PanelRow 行为一致（含 aria-current）。
+		 * @param props - id、标签、是否宽栏、面板信息订阅与切换回调。
+		 * @returns 面板行元素。
+		 */
+		/**
+		 * 面板行的渲染入口。注入面缺席时返回空数组，绝不抛错——侧栏是全局壳，
+		 * 任何单个席位异常都不应让整条侧栏消失。
+		 * @param useSidebarPanels - 适配层注入的订阅钩子。
+		 * @returns 面板行列表。
+		 */
+		function useSidebarPanelRows(useSidebarPanels) {
+			if (typeof useSidebarPanels !== "function") return [];
+			try { return useSidebarPanels((rows) => rows) ?? []; } catch { return []; }
+		}
+		function SidebarPanelRow({ id, label, wide, subscribePanelInfo, selectPanel, renderPanelIcon }) {
+			const [active, setActive] = (0, react.useState)(false);
+			(0, react.useEffect)(() => {
+				if (typeof subscribePanelInfo !== "function") return void 0;
+				const read = (info) => setActive((info?.activePanelId ?? null) === id);
+				read(void 0);
+				return subscribePanelInfo(read);
+			}, [id, subscribePanelInfo]);
+			return (0, react_jsx_runtime.jsxs)("button", {
+				type: "button",
+				className: clsx(SidebarRoot_module_css_default.panelRow, active && SidebarRoot_module_css_default.panelActive),
+				"aria-label": label,
+				"aria-current": active ? "page" : void 0,
+				onClick: () => selectPanel(id),
+				children: [(0, react_jsx_runtime.jsx)("span", {
+					className: SidebarRoot_module_css_default.panelGlyph,
+					"aria-hidden": "true",
+					children: (() => {
+						const size = wide ? 16 : 18;
+						const rendered = typeof renderPanelIcon === "function" ? renderPanelIcon(id, { size, active }) : null;
+						if (rendered !== null && rendered !== void 0 && rendered !== false) return rendered;
+						// 席位无人注册时回退到官方插件图元，保证"插件"入口始终有官方图标。
+						const PluginIcon = icon(id === "plugins" ? "IconPluginPinwheelOutlineRegular" : "IconWarningOutlineRegular");
+						return (0, react_jsx_runtime.jsx)(PluginIcon, { size });
+					})()
+				}), wide && (0, react_jsx_runtime.jsx)("span", {
+					className: SidebarRoot_module_css_default.panelTitle,
+					children: label
+				})]
+			});
+		}
+		/**
+		 * 官方面板行区。没有注册项时整区不渲染，与官方侧边栏一致。
+		 * @param props - 面板列表、宽栏状态、订阅与切换回调。
+		 * @returns 面板行列表，或 null。
+		 */
+		function SidebarPanelList({ wide, panels, subscribePanelInfo, selectPanel, renderPanelIcon }) {
+			if (panels.length === 0) return null;
+			return (0, react_jsx_runtime.jsx)("nav", {
+				className: SidebarRoot_module_css_default.panelList,
+				"aria-label": "LexFlow",
+				children: panels.map((panel) => (0, react_jsx_runtime.jsx)(SidebarPanelRow, {
+					id: panel.id,
+					label: panel.label,
+					wide,
+					subscribePanelInfo,
+					selectPanel,
+					renderPanelIcon
+				}, panel.id))
+			});
+		}
+		function SidebarRoot({ collapsed, width, startSession, toggleSidebar, useSidebarPanels, selectPanel, panelInfo, t, renderSlot, renderPanelIcon }) {
 			const [settled, setSettled] = (0, react.useState)(collapsed);
 			(0, react.useEffect)(() => {
 				if (!collapsed) {
@@ -1505,7 +1656,13 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 					}),
 					(0, react_jsx_runtime.jsx)("div", {
 						className: SidebarRoot_module_css_default.lexflowNavigation,
-						children: renderSlot("sidebar.lexflow.nav", { wide, startSession })
+						children: renderSlot("sidebar.lexflow.nav", { wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, renderSlot) })
+					}), (0, react_jsx_runtime.jsx)(SidebarPanelList, {
+						wide,
+						panels: useSidebarPanelRows(useSidebarPanels),
+						subscribePanelInfo: panelInfo,
+						selectPanel,
+						renderPanelIcon: typeof renderPanelIcon === "function" ? renderPanelIcon : (id, ownerProps) => renderSlot("sidebar.panellist", ownerProps ?? {}, { only: id })
 					}), (0, react_jsx_runtime.jsx)("div", {
 						className: SidebarRoot_module_css_default.regionArea,
 						children: renderSlot("sidebar.workspaces", {
@@ -1571,7 +1728,14 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 			},
 			toggleSidebar: () => {
           layout.toggleSidebar();
-			}
+			},
+			// 官方面板行：条目来自 sidebar.panellist 席位（官方插件在此注册），
+			// 选中态与切换走同一份 panelInfo 与 selectPanel，避免出现两个真相源。
+			useSidebarPanels: (selector) => runtime.ui.sidebarPanelRows(selector),
+			// 图标由侧栏模块实现并下传（那里才有 renderSlot 与官方席位通道）。
+			renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, renderSlot),
+			selectPanel: (id) => layout.selectPanel(id),
+			panelInfo: (listener) => layout.subscribePanelInfo(listener),
 		});
         runtime.lifecycle.effect(() => slots.register({
 				name: "sidebar",
@@ -1593,6 +1757,13 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 						kind: "single",
 						scope: "root"
 					},
+					// 官方面板行席位：官方插件（如 ui-plugin-manager）在这里注册图标行，
+					// 官方侧边栏的 PanelRow 是该席位的消费者。LexFlow 侧栏保持自有结构，
+					// 但必须声明并渲染它，否则这些行没有落点、对应面板也点不开。
+					"sidebar.panellist": {
+						kind: "list",
+						scope: "root"
+					},
 					"sidebar.settings": {
 						kind: "single",
 						scope: "root"
@@ -1602,7 +1773,7 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 						scope: "root"
 					}
 				},
-				inject: injectProps
+				inject: () => ({ ...injectProps(), renderPanelIcon: (id, ownerProps) => renderPanelIconImpl(id, ownerProps, undefined) })
 			}, SidebarRoot), "ui-sidebar: slot registration");
 		}
 		//#endregion
@@ -1618,6 +1789,9 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
     }
 
     function clientAdapter(ctx) {
+      // 面板行的订阅钩子在本作用域内实现（它要读这里的 slotsService 与快照存储），
+      // 因此本作用域需要自己的 React 绑定；上层的 react 绑定属于各模块内部作用域。
+      const panelRowsReact = require("react")
       const connection = typeof ctx.get === 'function' ? ctx.get('connection') : ctx.connection
       const remote = typeof ctx.get === 'function' ? ctx.get('remote') : ctx.remote
       const nativeSessions = typeof ctx.get === 'function' ? ctx.get('sessions') : ctx.sessions
@@ -1638,11 +1812,71 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
       const commandUi = typeof ctx.get === 'function' ? ctx.get('commandUi') : ctx.commandUi
       const remoteSession = remote?.session
       const remoteLlm = remote?.llm
+      /**
+       * 官方面板行席位 `sidebar.panellist` 的条目快照。
+       *
+       * 官方侧边栏用自己的 slots 服务枚举该席位；LexFlow 侧栏是自有实现，
+       * 因此在这里（slotsService 可用处）枚举一次并缓存，席位变动时刷新。
+       * 标签解析优先用条目自身的 locale 标签，取不到时回退为条目 id；
+       * 服务不支持枚举或没有任何条目时为空数组，侧栏据此不渲染面板区。
+       */
+      // 惰性建存储：底座服务缺席时（例如单元测试的桩上下文）不应在构造期就依赖它。
+      /**
+       * 把面板行快照存储适配成选择器钩子。
+       *
+       * 底座的 SnapshotStore 只提供 getSnapshot/subscribe，React 选择器钩子由
+       * ui-renderer 合成；适配层不依赖那层合成，这里用 useSyncExternalStore 直接订阅。
+       * @param store - 面板行快照存储。
+       * @param selector - 从快照挑选所需值的纯函数。
+       * @returns 选择器结果。
+       */
+      function useSidebarPanelRowsStore(store, selector) {
+      	const empty = panelRowsReact.useRef([]);
+      	return panelRowsReact.useSyncExternalStore(
+            (listener) => store === undefined ? () => {} : store.subscribe(listener),
+            () => store === undefined ? empty.current : selector(store.getSnapshot()),
+            () => store === undefined ? empty.current : selector(store.getSnapshot())
+      	);
+      }
+
+      let sidebarPanels
+      const refreshSidebarPanels = () => {
+        if (sidebarPanels === undefined) sidebarPanels = createSnapshotStore([])
+        let next = []
+        try {
+          const entries = typeof slotsService?.entriesOfSlot === 'function' ? slotsService.entriesOfSlot('sidebar.panellist') ?? [] : []
+          next = entries.map(({ options }) => {
+            const id = typeof options?.id === 'string' ? options.id : undefined
+            if (id === undefined) return undefined
+            let label = id
+            try {
+              label = (typeof options.label === 'function' ? options.label() : options.label) ?? id
+              if (typeof label !== 'string') label = String(label)
+            } catch { label = id }
+            return { id, order: typeof options.order === 'number' ? options.order : 0, label }
+          }).filter(panel => panel !== undefined).sort((a, b) => a.order - b.order)
+        } catch { next = [] }
+        const previous = sidebarPanels.getSnapshot()
+        if (previous.length !== next.length || previous.some((panel, index) => panel.id !== next[index].id || panel.label !== next[index].label)) sidebarPanels.set(next)
+      }
+      // 面板行只在底座 slots 服务可用时初始化：服务缺席（如单元测试的桩上下文）
+      // 时整条通道保持为空，侧栏照常渲染其余部分。
+      let disposeSidebarPanels = () => {}
+      if (typeof slotsService?.entriesOfSlot === 'function') {
+        refreshSidebarPanels()
+        // 席位声明变动时刷新。订阅不可用时保留首次枚举结果，不影响侧栏渲染。
+        if (typeof slotsService.subscribe === 'function') {
+          try { disposeSidebarPanels = slotsService.subscribe('sidebar.panellist', refreshSidebarPanels) } catch { disposeSidebarPanels = () => {} }
+        }
+      }
       const pages = pageRegistry()
       const contributions = contributionRegistry()
       const documents = documentApi()
       const ui = Object.freeze({
         pages,
+        // 官方面板行的枚举与订阅：存储建在 clientAdapter 作用域（slotsService 在此可用），
+        // sidebar.apply 处于另一作用域，因此经稳定面暴露，避免跨作用域引用。
+        sidebarPanelRows: store => useSidebarPanelRowsStore(sidebarPanels, store),
         mountShell: Page => mountHostShell(runtime, Page),
         contributions,
         compatibility: Object.freeze({

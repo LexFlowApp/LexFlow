@@ -6,72 +6,90 @@
       "target": "@lexflow/dsh-adapter",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js", "lib/contracts.js"]
-    },
-    {
-      "source": "lexflow-codex-connect",
-      "target": "@lexflow/codex-connect",
-      "kind": "lexflow-owned",
-      "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/bin.js", "lib/index.js", "lib/client.js", "lib/invariant.js", "lib/src-ByKP_wn9.js", "lib/model-catalog.js", "lib/codex-model-discovery.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js",
+        "lib/contracts.js"
+      ]
     },
     {
       "source": "lexflow-kimi-connect",
       "target": "@lexflow/kimi-connect",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js"
+      ]
     },
     {
       "source": "lexflow-ui-shell",
       "target": "@lexflow/ui-shell",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js"
+      ]
     },
     {
       "source": "lexflow-ui-pages",
       "target": "@lexflow/ui-pages",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js"
+      ]
     },
     {
       "source": "lexflow-archive",
       "target": "@lexflow/archive",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js", "lib/file-boundary.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js",
+        "lib/file-boundary.js"
+      ]
     },
     {
       "source": "lexflow-presets",
       "target": "@lexflow/presets",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js"
+      ]
     },
     {
       "source": "lexflow-workbench",
       "target": "@lexflow/workbench",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js"
+      ]
     },
     {
       "source": "lexflow-workflow",
       "target": "@lexflow/workflow",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.1.7-alpha.1",
-      "entrypoints": ["lib/index.js", "lib/client.js", "lib/invariant.js"]
+      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "entrypoints": [
+        "lib/index.js",
+        "lib/client.js",
+        "lib/invariant.js"
+      ]
     }
   ]
 }

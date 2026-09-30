@@ -16,7 +16,7 @@ test('LexFlow package identity is independent', () => {
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
   assert.equal(packageJson.main, 'out/main/index.js')
-  assert.equal(packageJson.dependencies['@deepseek-ai/dsh'], '0.1.7-alpha.1')
+  assert.equal(packageJson.dependencies['@deepseek-ai/dsh'], '0.2.0-rc.2')
   assert.equal(packageJson.dependencies['@earendil-works/pi-ai'], '0.85.1')
   assert.equal(packageJson.dependencies['dsh-codex-connect'], undefined)
 })
@@ -32,7 +32,6 @@ test('LexFlow-owned paths and package identities use the LexFlow name', () => {
   assert.match(main, /workflowSettingsPath/)
   assert.deepEqual(manifest.packages.filter((plugin) => plugin.kind === 'lexflow-owned').map((plugin) => plugin.source), [
     'lexflow-dsh-adapter',
-    'lexflow-codex-connect',
     'lexflow-kimi-connect',
     'lexflow-ui-shell',
     'lexflow-ui-pages',
@@ -143,7 +142,6 @@ test('LexFlow has one adapter, one Codex bridge, and the expected product plugin
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'manifest.json'), 'utf8'))
   assert.deepEqual(manifest.packages.map((plugin) => plugin.target), [
     '@lexflow/dsh-adapter',
-    '@lexflow/codex-connect',
     '@lexflow/kimi-connect',
     '@lexflow/ui-shell',
     '@lexflow/ui-pages',
@@ -154,9 +152,17 @@ test('LexFlow has one adapter, one Codex bridge, and the expected product plugin
   ])
   assert.ok(manifest.packages.every((plugin) => plugin.kind === 'lexflow-owned'))
   const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
-  for (const id of ['ui-layout', 'ui-sidebar', 'ui-model-selection', 'ui-settings-models']) {
+  // LexFlow 自有壳层继续停用官方布局、侧栏与模型选择入口；
+  // 官方「模型」设置页自 0.6.0 起启用（自研模型页已移除），因此不再停用它。
+  for (const id of ['ui-layout', 'ui-sidebar', 'ui-model-selection']) {
     assert.ok(main.includes(`- id: ${id}\\n  disabled: true`))
   }
+  // GPT 套餐接入自 0.6.0 起从运行期装配中移除：模型选择器不应再出现未接入的 GPT 套餐。
+  assert.doesNotMatch(main, /id: llm-openai-codex/)
+  assert.doesNotMatch(main, /name: '@lexflow\/codex-connect'/)
+  assert.ok(!manifest.packages.some((plugin) => plugin.target === '@lexflow/codex-connect'))
+  assert.doesNotMatch(main, /- id: ui-settings-models\\n  disabled: true/)
+  assert.doesNotMatch(main, /- id: ui-settings\\n  disabled: true/)
   assert.doesNotMatch(main, /- id: ui-conversation\\n  disabled: true/)
   const adapter = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'index.js'), 'utf8')
   const archive = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-archive', 'src', 'index.js'), 'utf8')
@@ -214,7 +220,7 @@ test('native client patches supply a single LexFlow sidebar and routed center pa
   assert.doesNotMatch(pages, /lexflowWorkflowFooterBack/)
   assert.match(pages, /height: 15/)
   assert.doesNotMatch(pages, /jsx\((?:SearchIcon|FilterIcon|PlusIcon)\)/)
-  assert.match(adapter, /sidebar\.lexflow\.nav", \{ wide, startSession \}/)
+  assert.match(adapter, /sidebar\.lexflow\.nav", \{ wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon: \(id, ownerProps\) => renderPanelIconImpl\(id, ownerProps, renderSlot\) \}/)
   assert.match(archive, /pages\.pages\.Workflow/)
   assert.match(workbench, /pages\.pages\.Workbench/)
 })
@@ -413,17 +419,19 @@ test('LexFlow workflow storage uses typed Markdown files and recoverable old dat
   }
 })
 
-test('LexFlow registers the optional GPT subscription provider without changing defaults', () => {
+test('GPT subscription integration is unwired but its source is retained', () => {
+  // 2026-09-30 决定：GPT 套餐接入从运行期装配中移除——它会让模型选择器出现
+  // 实际未接入的 GPT 套餐条目。源码包整体保留，供将来恢复时按原方案重新登记。
   const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
-  assert.match(main, /id: llm-openai-codex/)
-  assert.match(main, /name: '@lexflow\/codex-connect'/)
-  assert.match(main, /enableProxy: false/)
-  assert.match(main, /enableSearch: false/)
-  assert.match(main, /enableImageTool: false/)
-  assert.match(main, /enableImageGeneration: false/)
-  assert.doesNotMatch(main, /name: dsh-codex-connect/)
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'manifest.json'), 'utf8'))
-  assert.equal(manifest.packages.find((plugin) => plugin.target === '@lexflow\/codex-connect').compatibleWith, '@deepseek-ai/dsh@0.1.7-alpha.1')
+  assert.doesNotMatch(main, /id: llm-openai-codex/)
+  assert.doesNotMatch(main, /name: '@lexflow\/codex-connect'/)
+  assert.ok(!manifest.packages.some((plugin) => plugin.target === '@lexflow/codex-connect'))
+  // 恢复所需的三样东西仍在：插件包、清单里未登记、以及它自己的兼容声明。
+  assert.ok(fs.existsSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'package.json')))
+  assert.ok(fs.existsSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'cordis.patch.yml')))
+  const compat = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'compatibility.json'), 'utf8'))
+  assert.equal(compat.dshPluginApi.version, '0.2.0-rc.2')
 })
 
 test('LexFlow keeps Codex context-window controls in the bridge', () => {
@@ -446,11 +454,11 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   for (const symbol of ['createSnapshotStore', 'defineStore', 'toAssistantBlocks', 'isTokenDelta', 'Modal', 'writeClipboard']) assert.match(adapter, new RegExp(symbol))
   // 弹窗打开时，所有覆盖层浮点元素都必须处置：返回箭头／侧栏开关、拖拽手柄、
   // 以及运行态 Flowing 条。漏一个就会出现"浮层压着弹窗遮罩"的观感问题。
-  assert.match(adapter, /\[data-lexflow-modal-open="true"\][^\n]*l_V-RG_root[^\n]*display: none/u)
+  assert.match(adapter, /\[data-lexflow-modal-open="true"\][^\n]*data-chat-running[^\n]*display: none/u)
   // 运行态 Flowing 条留在对话流内（不再 position: fixed）：它本身就是流里的节点，
   // 定位一旦依赖输入区的几何，输入区改版就会错位（本次即因此重做）。
   assert.match(adapter, /\[data-chat-flow-kind="turn-process"\]\[data-lexflow-flowing-order="true"\] \{ order: 99/u)
-  const flowingRule = adapter.match(/\[class\*="l_V-RG_root"\]\[data-lexflow-flowing="true"\] \{[^}]*\}/u)
+  const flowingRule = adapter.match(/\[data-chat-running\]\[data-lexflow-flowing="true"\] \{[^}]*\}/u)
   assert.ok(flowingRule, '运行态 Flowing 条必须有样式规则')
   assert.doesNotMatch(flowingRule[0], /position: fixed/u)
   assert.doesNotMatch(adapter, /--lexflow-flowing-(left|bottom)/u)
@@ -515,9 +523,15 @@ test('LexFlow Codex bridge retains the complete capability surface', () => {
   assert.doesNotMatch(bridge, /from "@deepseek-ai\/cordis"/)
   assert.doesNotMatch(bridge, /ctx\.(webServer|llm|attachments|fs|inject|logger|reflect)/)
   assert.doesNotMatch(client, /ctx\.(effect|locale|settingsScope|slots|sessions|inject)/)
-  assert.doesNotMatch(client, /settings\.plugin\.item|settings\.models\.footer/)
-  assert.match(client, /models\.gpt\.subscription/)
-  assert.match(client, /models\.gpt\.settings/)
+  assert.doesNotMatch(client, /settings\.plugin\.item/)
+  // Codex 订阅的登录入口自 0.6.0 起注册到官方「模型」设置页的提供方卡片扩展席位，
+  // 键为 Codex 自己的设置命名空间；界面能力仍由同一批组件承载。
+  assert.match(client, /settings\.models\.provider-card/)
+  assert.match(client, /key: OPENAI_CODEX_SETTINGS_NAMESPACE/)
+  // Footer 作为兜底席位：Codex 走自有路由，官方提供商目录未必列出它。
+  assert.match(client, /settings\.models\.footer/)
+  assert.doesNotMatch(client, /runtime\.ui\.contributions/)
+  for (const symbol of ['OpenAICodexSettings']) assert.match(client, new RegExp(symbol))
   assert.match(bridge, /from "@lexflow\/dsh-adapter"/)
   for (const symbol of ['registerWebRoutes', 'registerSearchProvider', 'registerTools', 'registerSettings']) assert.match(adapter, new RegExp(symbol))
 })
@@ -530,10 +544,24 @@ test('LexFlow presents the domestic ZAI route before the international route', (
   assert.match(modelSelection, /const arrangedGroups = presentModelGroups\(groups, result\.value\.routableProviders\)/)
 })
 
-test('LexFlow separates the two GLM provider editors', () => {
-  const modelSettings = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-workflow', 'lib', 'client.js'), 'utf8')
-  assert.match(modelSettings, /className: "lexflowModelProviderEditors"/)
-  assert.match(modelSettings, /gap: "12px"/)
+test('LexFlow delegates provider configuration to the official Models page', () => {
+  // 自 0.6.0 起模型页改用官方原版：自研分栏页（含 GLM 双编辑器）已移除，
+  // 提供方配置由官方页的提供方行与编辑器承担；LexFlow 只保留 Codex 与 Kimi
+  // 的登录入口，经官方提供方卡片席位注入。
+  const workflow = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-workflow', 'lib', 'client.js'), 'utf8')
+  assert.doesNotMatch(workflow, /LexFlowModelsSection/)
+  assert.doesNotMatch(workflow, /lexflowModelProviderEditors/)
+  assert.doesNotMatch(workflow, /settings\.section/)
+  assert.match(workflow, /__LEXFLOW_MODEL_VISIBILITY__/)
+
+  const kimi = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-kimi-connect', 'lib', 'client.js'), 'utf8')
+  assert.match(kimi, /settings\.models\.provider-card/)
+  assert.match(kimi, /SETTINGS_NAMESPACE = 'llm-pi-ai'/)
+  assert.match(kimi, /KIMI_ROUTE = 'kimi-coding'/)
+  assert.doesNotMatch(kimi, /runtime\.ui\.contributions/)
+
+  const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
+  assert.doesNotMatch(main, /- id: ui-settings-models\\n  disabled: true/)
 })
 
 test('LexFlow typography and sidebar safety treatments are locally packaged', () => {
@@ -558,31 +586,17 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.doesNotMatch(workflow, /Flowing\.\.\./)
   assert.doesNotMatch(workflow, /conversationEvents|conversationViews/)
   assert.match(workflow, /runtime\.ui\.withSessionSlots/)
-  assert.match(workflow, /runtime\.ui\.settings\.schema/)
   assert.match(sidebar, /lexflowSidebarRoot/)
   assert.match(sidebar, /lexflowSidebarCollapsed/)
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'manifest.json'), 'utf8'))
   assert.ok(manifest.packages.some((plugin) => plugin.source === 'lexflow-workflow'))
   const modelSettingsJs = workflow
   const modelSelectionJs = workflow
-  assert.match(modelSettingsJs, /LexFlowModelsSection/)
-  assert.match(modelSettingsJs, /DeepSeek/)
-  assert.match(modelSettingsJs, /Codex 订阅/)
-  assert.match(modelSettingsJs, /GPT设置/)
-  assert.match(modelSettingsJs, /models\.gpt\.subscription/)
-  assert.match(modelSettingsJs, /models\.gpt\.settings/)
-  assert.match(modelSettingsJs, /__LEXFLOW_MODEL_VISIBILITY__/)
-  assert.match(modelSettingsJs, /let React = react/)
-  assert.match(modelSettingsJs, /let jsx = \(\.\.\.args\) => react_jsx_runtime\.jsx\(\.\.\.args\)/)
   assert.doesNotMatch(modelSettingsJs, /data-lexflow-show-codex/)
-  assert.match(modelSettingsJs, /children: label/)
   assert.doesNotMatch(modelSettingsJs, /\}, label\)/)
-  assert.match(modelSettingsJs, /lexflowModelStatusMark/)
   assert.doesNotMatch(modelSettingsJs, /lexflowCodexMask/)
   assert.doesNotMatch(modelSettingsJs, /setCodexDialogOpen\(true\)/)
   assert.doesNotMatch(modelSettingsJs, /打开 Codex Connect 配置/)
-  assert.match(modelSettingsJs, /const editorsFor = \(ids\) =>/)
-  assert.match(modelSettingsJs, /editorsFor\(\["zai-coding-cn", "zai"\]\)/)
   assert.match(modelSelectionJs, /__LEXFLOW_MODEL_VISIBILITY__/)
   assert.match(modelSelectionJs, /allowed === null \|\| allowed\.size === 0 \? arrangedGroups/)
   assert.match(lexflowUi, /\.lexflowModelCard/)
@@ -601,8 +615,8 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.doesNotMatch(lexflowUi, /font-size: 14\.5px !important/)
   assert.doesNotMatch(lexflowUi, /Sxvs8a_root|data-lexflow-title-overflow|sessionRow|wSkVaW_header/)
   assert.match(adapter, /data-input-mirror.*data-input-backdrop.*font-size: var\(--dsh-content-font-size, 14px\)/)
-  assert.match(adapter, /_turnStatus.*background-clip: text !important/)
-  assert.match(adapter, /_turnStatusClock.*background: none !important/)
+  assert.match(adapter, /\[data-chat-running\]\[data-lexflow-flowing="true"\]::after.*content: "Flowing\.\.\.\.\.\."|\[data-chat-running\]\[data-lexflow-flowing="true"\]::after.*content: "Flowing\.\.\."/)
+  assert.match(adapter, /\[data-chat-running\] \[class\*="visuallyHidden"\].*background: none !important/)
   assert.match(adapter, /data-lexflow-title-overflow/)
   assert.match(adapter, /lexflowSessionTitleMarquee/)
   assert.match(adapter, /lexflowTaskDotPulse/)
@@ -676,17 +690,7 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(adapter, /wSkVaW_tabs.*flex-direction: row !important/)
   assert.match(sidebar, /lexflowSidebar_fading \.lexflowSidebar_footArea\{visibility:hidden\}/)
   assert.match(sidebar, /children: collapsed \? null : renderSlot\("sidebar\.settings", \{ wide \}\)/)
-  assert.match(modelSettings, /this\.api\.llm\.models\(\{\}\)/)
-  assert.match(modelSettings, /function routeRegistered\(state, row\)/)
-  assert.match(modelSettings, /rows\.find\(\(row\) => routeRegistered\(state, row\) && providerUsable\(row\)\)/)
-  assert.match(modelSettings, /value\?\.status === "signed-in"/)
-  assert.match(modelSettings, /visibilitychange/)
-  assert.match(modelSettings, /function apiRouteStatus\(state, ids\)/)
-  assert.match(modelSettings, /ids\.filter\(\(id\) => id !== "openai-codex"\)/)
-  assert.match(modelSettings, /modelCatalogStatus = modelGroupsResponse/)
-  assert.match(modelSettings, /let modelGroups = \[\];\s*let modelCatalogStatus = "unavailable";/)
   assert.match(modelSettings, /cleanModelDisplayName/)
-  assert.doesNotMatch(modelSettings, /智谱国内 API（支持 Coding Plan 与按量额度）/)
   assert.doesNotMatch(modelSettings, /card\("glm", "GLM"[^\n]+subscription/)
   assert.match(adapter, /wSkVaW_header.*wSkVaW_crumbCurrent \{ font-weight: 700/)
   assert.doesNotMatch(sidebar, /SidebarRoot_module_css_default\.toggle/)

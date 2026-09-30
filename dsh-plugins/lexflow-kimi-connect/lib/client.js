@@ -17,8 +17,16 @@ window.__ModuleLoader__.load({
       textDecoration: 'underline',
       textUnderlineOffset: '2px'
     }
-    /** 界面贡献位：与 GPT 的 models.gpt.subscription 同构，由工作流插件的模型页渲染。 */
-    const CONTRIBUTION = 'models.kimi.subscription'
+    /**
+     * 官方「模型」设置页的提供方卡片扩展席位。
+     *
+     * Kimi 套餐走 llm-pi-ai 家族的设置命名空间，因此注册键是该命名空间；
+     * 该席位会为家族内每一行都分发一次，所以组件内必须按提供商 id 过滤，
+     * 只在 kimi-coding 行上渲染，避免出现在智谱等其它行里。
+     */
+    const PROVIDER_CARD_SLOT = 'settings.models.provider-card'
+    const SETTINGS_NAMESPACE = 'llm-pi-ai'
+    const KIMI_ROUTE = 'kimi-coding'
     /** 等待授权期间的轮询间隔。设备码在浏览器侧完成，应用侧只能轮询确认。 */
     const POLL_MS = 2000
 
@@ -102,16 +110,22 @@ window.__ModuleLoader__.load({
       ] })
     }
 
+    /** 只在 Kimi 套餐那一行渲染登录卡片。 */
+    function KimiProviderCard(ownerProps) {
+      const provider = ownerProps?.provider?.provider ?? ownerProps?.provider?.id
+      if (provider !== KIMI_ROUTE) return null
+      return jsx(KimiSubscription, {})
+    }
+
     const inject = ['lexflow']
     function apply(ctx) {
       const runtime = ctx.get('lexflow')
-      const contributions = runtime?.ui?.contributions
-      if (contributions === undefined) return undefined
-      return contributions.register(CONTRIBUTION, {
-        id: 'kimi-subscription',
-        order: 10,
-        component: KimiSubscription
-      })
+      const slots = runtime?.ui?.slots
+      if (slots === undefined) return undefined
+      return slots.inject(PROVIDER_CARD_SLOT, () => slots.register({
+        name: PROVIDER_CARD_SLOT,
+        key: SETTINGS_NAMESPACE
+      }, KimiProviderCard))
     }
 
     exports.inject = inject

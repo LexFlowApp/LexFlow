@@ -13,6 +13,8 @@ window.__ModuleLoader__.load({
     const toolButton = { ...button, borderRadius: '6px', fontSize: '12px', lineHeight: 1.3, padding: '4px 8px' }
     const input = { background: 'var(--lexflow-dsw-alias-bg-base)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', padding: '8px 10px' }
     const pages = [['conversation', '新对话'], ['workflow', '工作流'], ['archive', '档案室'], ['workbench', '工作台']]
+    /** 官方装配里常驻的全局面板入口（与官方侧栏的 sidebar.panellist 席位互补）。 */
+    const OFFICIAL_PANELS = [['plugins', '插件']]
     const LEXFLOW_TOKENS = {
       '--lexflow-dsw-alias-bg-base': { light: '#faf9f6', dark: '#262523' },
       '--lexflow-dsw-alias-bg-layer-1': { light: '#ffffff', dark: '#2b2a27' },
@@ -252,12 +254,174 @@ window.__ModuleLoader__.load({
       archive: jsx('svg', { fill: 'none', viewBox: '0 0 16 16', xmlns: 'http://www.w3.org/2000/svg', children: jsx('path', { d: 'M2.6 4.6c0-.9.7-1.6 1.6-1.6h2.2l1.4 1.7h4c.9 0 1.6.7 1.6 1.6v5.1c0 .9-.7 1.6-1.6 1.6H4.2c-.9 0-1.6-.7-1.6-1.6V4.6z', stroke: 'currentColor', strokeLinejoin: 'round', strokeWidth: '1.4' }) }),
       workbench: jsx('svg', { fill: 'none', viewBox: '0 0 16 16', xmlns: 'http://www.w3.org/2000/svg', children: jsx('path', { d: 'M13.2 4.6a3.6 3.6 0 0 1-4.9 4.3l-4 4a1.35 1.35 0 0 1-1.9-1.9l4-4a3.6 3.6 0 0 1 4.3-4.9L8.9 4.9l2.2 2.2 2.1-2.5z', stroke: 'currentColor', strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '1.35' }) })
     }
-    function LexFlowNavigation({ wide, startSession }) {
-      const [active, setActive] = React.useState('conversation')
-      React.useEffect(() => { const listener = (event) => setActive(event.detail?.page || 'conversation'); window.addEventListener('lexflow:navigate', listener); return () => window.removeEventListener('lexflow:navigate', listener) }, [])
-      if (!wide) return null
-      return jsx('nav', { 'aria-label': 'LexFlow 一级导航', style: { display: 'grid', gap: '2px', margin: '2px 2px 9px' }, children: pages.map(([page, pageLabel]) => jsxs('button', { type: 'button', title: pageLabel, className: active === page ? 'lexflowNavItemActive' : undefined, onClick: () => { if (page === 'conversation' && typeof startSession === 'function') { const event = new CustomEvent('lexflow:navigate', { cancelable: true, detail: { page, startNew: true, afterNavigate: startSession } }); if (window.dispatchEvent(event)) startSession(); return } window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { page } })) }, style: { alignItems: 'center', background: active === page ? 'var(--lexflow-dsw-alias-interactive-bg-hover, rgba(0,0,0,.06))' : 'transparent', border: 0, borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary, inherit)', cursor: 'pointer', display: 'flex', font: 'inherit', fontSize: '14px', gap: '9px', justifyContent: 'flex-start', minHeight: '30px', padding: '0 10px', textAlign: 'left', whiteSpace: 'nowrap', width: '100%' }, children: [jsx('span', { className: 'lexflowNavIcon', style: { color: active === page ? 'var(--lexflow-dsw-alias-state-business-primary)' : 'var(--lexflow-dsw-alias-label-tertiary)', display: 'flex', flex: 'none', height: '16px', width: '16px' }, children: NAV_ICONS[page] }), pageLabel] }, page)) })
+    /** 一级导航行的公共样式：面板行与页面行必须完全一致。 */
+    function navigationItemStyle(active) {
+      return {
+        alignItems: 'center',
+        background: active ? 'var(--lexflow-dsw-alias-interactive-bg-hover, rgba(0,0,0,.06))' : 'transparent',
+        border: 0,
+        borderRadius: '7px',
+        color: 'var(--lexflow-dsw-alias-label-primary, inherit)',
+        cursor: 'pointer',
+        display: 'flex',
+        font: 'inherit',
+        fontSize: '14px',
+        gap: '9px',
+        justifyContent: 'flex-start',
+        minHeight: '30px',
+        padding: '0 10px',
+        textAlign: 'left',
+        whiteSpace: 'nowrap',
+        width: '100%'
+      }
     }
+
+    /** 图标槽位样式：颜色随选中态变化。 */
+    function navigationIconStyle(active) {
+      return {
+        color: active ? 'var(--lexflow-dsw-alias-state-business-primary)' : 'var(--lexflow-dsw-alias-label-tertiary)',
+        display: 'flex',
+        flex: 'none',
+        height: '16px',
+        width: '16px'
+      }
+    }
+
+    /**
+     * 固定面板入口的图标。
+     *
+     * 优先用适配层注入的渲染器（它先向官方 sidebar.panellist 席位索取官方图标、
+     * 再回退到官方图元）。若两者都拿不到，用与一级导航同风格的本地图形兜底——
+     * 宁可自绘，也不让入口出现"有字无图"。
+     * @param id - 面板 id。
+     * @param active - 是否选中。
+     * @param renderPanelIcon - 适配层注入的图标渲染器。
+     * @returns 图标元素。
+     */
+    function panelIconOf(id, active, renderPanelIcon) {
+      const rendered = typeof renderPanelIcon === 'function' ? renderPanelIcon(id, { size: 16, active }) : null
+      if (rendered !== null && rendered !== undefined && rendered !== false) return rendered
+      // 兜底图形直接复刻官方 sidebar.panellist 使用的插件图元
+      // （IconPluginPinwheelOutlineRegular：viewBox 0 0 16 16、四段、strokeWidth 1）。
+      return jsx('svg', {
+        width: 16,
+        height: 16,
+        viewBox: '0 0 16 16',
+        fill: 'none',
+        xmlns: 'http://www.w3.org/2000/svg',
+        'aria-hidden': 'true',
+        strokeWidth: 1,
+        children: [
+          jsx('path', { d: 'M7.84457 5.06199C11.6605 4.93876 14.7962 6.14848 14.8484 7.76397C14.8875 8.97461 13.1838 10.0696 10.7215 10.5942', stroke: 'currentColor' }),
+          jsx('path', { d: 'M5.12742 8.07731C5.00419 4.26138 6.21391 1.12568 7.8294 1.07351C9.04004 1.03441 10.135 2.73808 10.6596 5.20037', stroke: 'currentColor' }),
+          jsx('path', { d: 'M8.02457 10.6802C4.20865 10.8034 1.07294 9.5937 1.02077 7.97821C0.981678 6.76758 2.68535 5.67262 5.14763 5.14798', stroke: 'currentColor' }),
+          jsx('path', { d: 'M10.7476 7.89535C10.8708 11.7113 9.66109 14.847 8.0456 14.8991C6.83496 14.9382 5.74 13.2346 5.21536 10.7723', stroke: 'currentColor' })
+        ]
+      })
+    }
+
+    /** 从 sidebar.panellist 条目上取读显示文案（可能是函数或字符串）。 */
+    function panelLabelOf(options) {
+      const raw = options?.label
+      const text = typeof raw === 'function' ? raw() : raw
+      return text ?? options?.id ?? ''
+    }
+
+    function LexFlowNavigation({ wide, startSession, useSidebarPanels, selectPanel, renderPanelIcon }) {
+      const [active, setActive] = React.useState('conversation')
+      React.useEffect(() => {
+        const listener = (event) => setActive(event.detail?.page || event.detail?.panel || 'conversation')
+        window.addEventListener('lexflow:navigate', listener)
+        return () => window.removeEventListener('lexflow:navigate', listener)
+      }, [])
+      const [activePanel, setActivePanel] = React.useState(null)
+      React.useEffect(() => {
+        const listener = (event) => setActivePanel(event.detail?.panel ?? null)
+        window.addEventListener('lexflow:navigate', listener)
+        return () => window.removeEventListener('lexflow:navigate', listener)
+      }, [])
+      // 官方面板行的元信息来自 sidebar.panellist 席位（官方插件在此注册），
+      // 图标由同一席位渲染，因此字体与图标都与官方一致。
+      const panelRows = typeof useSidebarPanels === 'function' ? useSidebarPanels((value) => value) : []
+      const panelEntries = Array.isArray(panelRows) ? panelRows : []
+      const list = Array.isArray(panelEntries) ? panelEntries : []
+      // 钩子必须在任何提前 return 之前全部调用；宽栏判断放到这里。
+      if (!wide) return null
+      return jsx('nav', { 'aria-label': 'LexFlow 一级导航', style: { display: 'grid', gap: '2px', margin: '2px 2px 9px' }, children: [
+        ...pages.map(([page, pageLabel]) => {
+          const isActive = active === page && activePanel === null
+          return jsxs('button', {
+            type: 'button',
+            title: pageLabel,
+            className: isActive ? 'lexflowNavItemActive' : undefined,
+            onClick: () => {
+              if (page === 'conversation' && typeof startSession === 'function') {
+                const event = new CustomEvent('lexflow:navigate', { cancelable: true, detail: { page, startNew: true, afterNavigate: startSession } })
+                if (window.dispatchEvent(event)) startSession()
+                return
+              }
+              window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { page } }))
+            },
+            style: navigationItemStyle(isActive),
+            children: [
+              jsx('span', { className: 'lexflowNavIcon', style: navigationIconStyle(isActive), children: NAV_ICONS[page] }),
+              pageLabel
+            ]
+          }, page)
+        }),
+        ...list.map((entry) => {
+          const options = entry?.options ?? entry ?? {}
+          const id = options.id
+          if (typeof id !== 'string' || id === '') return null
+          const label = panelLabelOf(options)
+          const isActive = activePanel === id
+          return jsxs('button', {
+            type: 'button',
+            title: label,
+            'aria-current': isActive ? 'page' : undefined,
+            className: isActive ? 'lexflowNavItemActive' : undefined,
+            onClick: () => {
+              if (typeof selectPanel === 'function') selectPanel(id)
+              else window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { panel: id } }))
+            },
+            style: navigationItemStyle(isActive),
+            children: [
+              jsx('span', {
+                className: 'lexflowNavIcon',
+                style: navigationIconStyle(isActive),
+                children: typeof renderPanelIcon === 'function'
+                  ? renderPanelIcon(id, { size: 16, active: isActive })
+                  : null
+              }),
+              label
+            ]
+          }, id)
+        }).filter(Boolean),
+        ...OFFICIAL_PANELS.filter(([id]) => !list.some((entry) => (entry?.options ?? entry ?? {}).id === id)).map(([id, label]) => {
+          const isActive = activePanel === id
+          return jsxs('button', {
+            type: 'button',
+            title: label,
+            'aria-current': isActive ? 'page' : undefined,
+            className: isActive ? 'lexflowNavItemActive' : undefined,
+            onClick: () => {
+              if (typeof selectPanel === 'function') selectPanel(id)
+              else window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { panel: id } }))
+            },
+            style: navigationItemStyle(isActive),
+            children: [
+              jsx('span', {
+                className: 'lexflowNavIcon',
+                style: navigationIconStyle(isActive),
+                children: panelIconOf(id, isActive, renderPanelIcon)
+              }),
+              label
+            ]
+          }, id)
+        })
+      ] })
+    }
+
     function goWorkbench(document) { window.dispatchEvent(new CustomEvent('lexflow:navigate', { detail: { page: 'workbench', document } })) }
 
     // "性能与用量"的显示策略（2026-09-27 定稿）：不再另设"关闭"开关。

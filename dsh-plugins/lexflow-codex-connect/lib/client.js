@@ -4035,24 +4035,31 @@ window.__ModuleLoader__.load({
 				namespace: OPENAI_CODEX_SETTINGS_NAMESPACE,
 				decode: decodeOpenAICodexSettings
 			});
+			// Codex 订阅的登录入口注册到官方「模型」设置页的提供方卡片扩展席位：
+			// 该席位按设置命名空间分发，Codex 自己的命名空间是 llm-openai-codex，
+			// 因此只在 Codex 那一行渲染。这里用 accountOnly——模型目录、端点与
+			// 代理由官方页的提供方编辑器负责，避免同一项能力出现两套控件。
 			runtime.lifecycle.effect(() => {
-			const subscription = runtime.ui.contributions.register("models.gpt.subscription", {
-				id: "codex-connect-account",
-				order: 10,
-				component: OpenAICodexSettings,
-				props: { t, account, embedded: true, accountOnly: true }
-			});
-			const configuration = runtime.ui.contributions.register("models.gpt.settings", {
-				id: "codex-connect-settings",
-				order: 10,
-				component: OpenAICodexSettings,
-				props: { t, account, configScope, embedded: true }
-			});
-			return () => {
-				subscription();
-				configuration();
-			};
-		}, "lexflow-codex-connect: GPT settings contributions");
+				const renderCard = () => (0, react_jsx_runtime.jsx)(OpenAICodexSettings, { t, account, embedded: true, accountOnly: true });
+				// 首选：Codex 自己的设置命名空间对应的提供方卡片内。
+				const disposeCard = slots.inject("settings.models.provider-card", () => slots.register({
+					name: "settings.models.provider-card",
+					key: OPENAI_CODEX_SETTINGS_NAMESPACE,
+					locale: namespace
+				}, renderCard));
+				// 兜底：Codex 走自有路由，官方“可配置提供商”目录未必列出它；
+				// 页面底部追加区是官方为该类入口提供的第二个席位，保证登录一定可见。
+				const disposeFooter = slots.inject("settings.models.footer", () => slots.register({
+					name: "settings.models.footer",
+					id: "lexflow-openai-codex",
+					order: 20,
+					locale: namespace
+				}, renderCard));
+				return () => {
+					disposeCard();
+					disposeFooter();
+				};
+			}, "lexflow-codex-connect: subscription card");
 				slots.inject("tool.call.toolview", () => slots.register({
 				name: "tool.call.toolview",
 				key: "codex_connect_image_generate",

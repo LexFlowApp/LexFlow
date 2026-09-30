@@ -115,7 +115,7 @@ async function ensureLexFlowDshProfile(): Promise<void> {
   }, null, 2) + '\n')
   await atomicWrite(path.join(profileRoot, 'cordis.yml'), '[]\n')
   await atomicWrite(path.join(profileRoot, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
-  await atomicWrite(profilePatchPath, `# LexFlow owns the product shell and business surfaces.\n# DeepSeek Harness remains the execution substrate; only its unstable seams are\n# consumed by @lexflow/dsh-adapter and the pinned workflow compatibility bundle.\n- id: ui-brand-official\n  disabled: true\n- id: ui-agent-preset\n  disabled: true\n- id: ui-layout\n  disabled: true\n- id: ui-sidebar\n  disabled: true\n- id: ui-model-selection\n  disabled: true\n- id: ui-settings-models\n  disabled: true\n- insert:\n    - id: lexflow-adapter\n      name: '@lexflow/dsh-adapter'\n    - id: lexflow-ui-pages\n      name: '@lexflow/ui-pages'\n    - id: lexflow-ui-shell\n      name: '@lexflow/ui-shell'\n    - id: lexflow-archive\n      name: '@lexflow/archive'\n      config:\n        workspaceRoot: ${JSON.stringify(paths.workspaceRoot)}\n        archiveRoot: ${JSON.stringify(paths.archiveRoot)}\n        draftsRoot: ${JSON.stringify(paths.draftsRoot)}\n        historyRoot: ${JSON.stringify(paths.historyRoot)}\n        trashRoot: ${JSON.stringify(paths.trashRoot)}\n        oldDataRoot: ${JSON.stringify(paths.oldDataRoot)}\n        defaultKnowledgeBaseRoot: ${JSON.stringify(paths.defaultKnowledgeBaseRoot)}\n        knowledgeBaseStatePath: ${JSON.stringify(paths.knowledgeBaseStatePath)}\n        userAgentPath: ${JSON.stringify(paths.userAgentPath)}\n    - id: lexflow-presets\n      name: '@lexflow/presets'\n    - id: lexflow-workbench\n      name: '@lexflow/workbench'\n    - id: lexflow-workflow\n      name: '@lexflow/workflow'\n`)
+  await atomicWrite(profilePatchPath, `# LexFlow owns the product shell and business surfaces.\n# DeepSeek Harness remains the execution substrate; only its unstable seams are\n# consumed by @lexflow/dsh-adapter and the pinned workflow compatibility bundle.\n- id: ui-brand-official\n  disabled: true\n- id: ui-agent-preset\n  disabled: true\n- id: ui-layout\n  disabled: true\n- id: ui-sidebar\n  disabled: true\n- id: ui-model-selection\n  disabled: true\n- insert:\n    - id: lexflow-adapter\n      name: '@lexflow/dsh-adapter'\n    - id: lexflow-ui-pages\n      name: '@lexflow/ui-pages'\n    - id: lexflow-ui-shell\n      name: '@lexflow/ui-shell'\n    - id: lexflow-archive\n      name: '@lexflow/archive'\n      config:\n        workspaceRoot: ${JSON.stringify(paths.workspaceRoot)}\n        archiveRoot: ${JSON.stringify(paths.archiveRoot)}\n        draftsRoot: ${JSON.stringify(paths.draftsRoot)}\n        historyRoot: ${JSON.stringify(paths.historyRoot)}\n        trashRoot: ${JSON.stringify(paths.trashRoot)}\n        oldDataRoot: ${JSON.stringify(paths.oldDataRoot)}\n        defaultKnowledgeBaseRoot: ${JSON.stringify(paths.defaultKnowledgeBaseRoot)}\n        knowledgeBaseStatePath: ${JSON.stringify(paths.knowledgeBaseStatePath)}\n        userAgentPath: ${JSON.stringify(paths.userAgentPath)}\n    - id: lexflow-presets\n      name: '@lexflow/presets'\n    - id: lexflow-workbench\n      name: '@lexflow/workbench'\n    - id: lexflow-workflow\n      name: '@lexflow/workflow'\n`)
   // 0.1.5 新增的“在应用中打开”控件不属于 LexFlow 产品界面（用户核验时确认为多余），
   // 只停用其客户端半边，保留宿主半边供文件链接等既有能力使用。
   await atomicWrite(
@@ -133,14 +133,6 @@ async function ensureLexFlowDshProfile(): Promise<void> {
   )
   await atomicWrite(path.join(profileRoot, 'cordis.patch.yml'), `${baseProfilePatchWithAgent}
 - insert:
-    # GPT 接入为可选的社区插件：仅注册模型提供方，不会改变默认模型、搜索或图像能力。
-    - id: llm-openai-codex
-      name: '@lexflow/codex-connect'
-      config:
-        enableProxy: false
-        enableSearch: false
-        enableImageTool: false
-        enableImageGeneration: false
     # Kimi 套餐登录入口：驱动模型层自带的 kimi-coding 授权流程，登录后套餐模型自动进入选择器。
     - id: lexflow-kimi-connect
       name: '@lexflow/kimi-connect'
@@ -189,7 +181,6 @@ ${settingsEntries}`)
     '@flowlegal/flow-standards',
     '@flowlegal/dsh-flow-ui',
     '@flowlegal/dsh-flow-standards',
-    'dsh-codex-connect',
   ]) {
     await fs.rm(path.join(profileNodeModules, ...legacyTarget.split('/')), { recursive: true, force: true })
   }
@@ -259,7 +250,8 @@ function notifyFullscreenState(): void {
 
 // 产品更名的兼容迁移：把旧 Flow 运行目录移入 LexFlow 的隔离目录，避免旧目录继续留在 Application Support 根部。
 function migrateLegacyAppData(): void {
-  const current = app.getPath('userData')
+  // 迁移只在真实数据根上执行：覆盖目录下没有历史遗留需要搬迁。
+  const current = paths === undefined ? app.getPath('userData') : paths.appDataRoot
   const legacy = path.join(path.dirname(current), 'Flow')
   if (legacy === current || !existsSync(legacy)) return
   try {
@@ -289,7 +281,7 @@ function migrateLegacyWorkspace(): void {
 }
 
 function migrateLegacyRuntimeLog(): void {
-  const root = app.getPath('userData')
+  const root = paths === undefined ? app.getPath('userData') : paths.appDataRoot
   const legacy = path.join(root, 'flow-runtime.log')
   const current = path.join(root, 'lexflow-runtime.log')
   if (existsSync(legacy) && !existsSync(current)) {
@@ -544,13 +536,13 @@ async function createWindow(): Promise<BrowserWindow> {
   win.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     if (level < 2) return
     appendFileSync(
-      path.join(app.getPath('userData'), 'lexflow-runtime.log'),
+      path.join(paths.appDataRoot, 'lexflow-runtime.log'),
       `[${new Date().toISOString()}] [renderer:${level === 3 ? 'error' : 'warn'}] ${message} (${sourceId}:${line})\n`,
     )
   })
   win.webContents.on('render-process-gone', (_event, details) => {
     appendFileSync(
-      path.join(app.getPath('userData'), 'lexflow-runtime.log'),
+      path.join(paths.appDataRoot, 'lexflow-runtime.log'),
       `[${new Date().toISOString()}] [renderer] process gone: ${details.reason}\n`,
     )
   })
@@ -584,10 +576,12 @@ function installMenu(): void {
 }
 
 app.whenReady().then(async () => {
+  // 先解析路径：LEXFLOW_DATA_ROOT 覆盖必须在该点生效，后面的历史迁移、
+  // 目录创建与运行日志都只作用于本次选定的数据根。
+  paths = getPaths()
   migrateLegacyWorkspace()
   migrateLegacyAppData()
   migrateLegacyRuntimeLog()
-  paths = getPaths()
   await ensureDirectories()
   await migrateAgentFileName()
   await migrateLegacyContent()

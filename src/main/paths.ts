@@ -21,9 +21,27 @@ export interface LexFlowPaths {
   invocationStatePath: string
 }
 
+/**
+ * 在模块加载时（app ready 之前）应用数据根覆盖。
+ *
+ * Chromium 自身的状态——缓存、Cookie、blob、会话存储——都写在 Electron 的
+ * userData 下，只换 LexFlow 自己的目录并不构成隔离。setPath 必须早于 app ready，
+ * 因此这一步放在模块顶层执行，而不是等 getPaths 被调用。
+ * @returns 覆盖后的数据根；未设置环境变量时返回 undefined。
+ */
+function applyDataRootOverride(): string | undefined {
+  const raw = process.env.LEXFLOW_DATA_ROOT?.trim()
+  if (raw === undefined || raw === '') return undefined
+  const resolved = path.resolve(raw)
+  if (app.getPath('userData') !== resolved) app.setPath('userData', resolved)
+  return resolved
+}
+
+const dataRootOverride = applyDataRootOverride()
+
 export function getPaths(): LexFlowPaths {
   const workspaceRoot = path.join(app.getPath('home'), 'Documents', 'LexFlow')
-  const appDataRoot = app.getPath('userData')
+  const appDataRoot = dataRootOverride ?? app.getPath('userData')
   return {
     workspaceRoot,
     archiveRoot: path.join(workspaceRoot, '档案室'),

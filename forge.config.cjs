@@ -22,6 +22,10 @@ module.exports = {
   packagerConfig: {
     name: 'LexFlow',
     appBundleId: 'com.lexflow.desktop',
+    // Electron 44 起 Chromium 不再支持 macOS 12，二进制 minos 为 13.0，
+    // 因此应用包的下限必须与二进制一致，否则 macOS 12 上会启动即崩。
+    // 该值另由 scripts/fix-app-icon.cjs 在打包后强制写回并校验。
+    LSMinimumSystemVersion: '13.0',
     asar: false,
     icon: 'assets/lexflow',
     ignore: (filename) => {
