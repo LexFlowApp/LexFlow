@@ -156,7 +156,7 @@ function createLexFlowSearchPanel(view, matchAllowed) {
 }
 
 export function createWorkbenchEditor(parent, options = {}) {
-  const style = document.createElement('style'); style.dataset.lexflowEditor = 'true'; style.textContent = vendorStyles + '\n' + styles
+  const style = document.createElement('style'); style.dataset.lexflowEditor = 'true'; style.dataset.plugin = '@lexflow/ui-pages'; style.textContent = vendorStyles + '\n' + styles
   parent.appendChild(style)
   const mount = document.createElement('div'); mount.className = 'atomic-cm-editor lexflowMarkdownEditor'; parent.appendChild(mount)
   let raw = String(options.content ?? '')

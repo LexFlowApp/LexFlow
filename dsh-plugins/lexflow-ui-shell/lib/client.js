@@ -123,8 +123,12 @@ window.__ModuleLoader__.load({
     ].join('\n')
     const LEXFLOW_MOTION_CSS = [
       'button, input, textarea, select, summary { transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, opacity .18s ease }',
-      'button:not(:disabled):hover { filter: brightness(.965) }',
-      'button:active { transform: scale(.98) }',
+      // 全局按钮不得使用 filter／transform 特效（此前的 :hover brightness 与
+      // :active scale 已移除）。官方组件（如插件管理页卡片）用 ::after 把按钮点击区
+      // 伸展到整卡：filter 会让按钮成为新的定位参照，使其 hover 时伸展区缩回标题文字；
+      // transform 会在按下瞬间移动按钮边缘，使 mouseup 落到按钮外、click 被重定向到
+      // 祖先（整行宽的返回行图标即死于此）。两者均为真实鼠标实测发现（2026-09-30），
+      // 合成 .click() 测不出。悬停反馈交给各组件自身的底色样式。
       '@keyframes lexflowRise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }',
       '.lexflowDialogPanel { animation: lexflowRise .18s ease }',
       '.lexflowPageMain { animation: lexflowRise .18s ease }',
@@ -224,7 +228,7 @@ window.__ModuleLoader__.load({
       '::-webkit-scrollbar-thumb { background: var(--lexflow-dsw-alias-scrollbar-bg-l1); border: 3px solid transparent; border-radius: 999px; background-clip: content-box; min-height: 32px }',
       '::-webkit-scrollbar-thumb:hover { background-color: var(--lexflow-dsw-alias-scrollbar-hover-l1) }',
       '::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent }',
-      '@media (prefers-reduced-motion: reduce) { button:active { transform: none } .lexflowDialogPanel, .lexflowPageMain { animation: none } button, input, textarea, select, summary { transition-duration: 0s } }'
+      '@media (prefers-reduced-motion: reduce) { .lexflowDialogPanel, .lexflowPageMain { animation: none } button, input, textarea, select, summary { transition-duration: 0s } }'
     ].join('\n')
     const LEXFLOW_TYPOGRAPHY_CSS = [
       ':root { --lexflow-content-font-size: var(--lexflow-dsh-content-font-size, 14px); --lexflow-content-font-delta: var(--lexflow-dsh-content-font-delta, 0px); }',
@@ -444,6 +448,8 @@ window.__ModuleLoader__.load({
           const disposeOverride = theme.overrideTokens('lexflow-appearance', LEXFLOW_TOKENS)
           const style = document.createElement('style')
           style.dataset.lexflowAppearance = 'true'
+          // 样式归属标记：防止被底座模块系统认领给无关插件、随其重载误删（2026-09-30 界面坍缩修复）。
+          style.dataset.plugin = '@lexflow/ui-shell'
           style.textContent = LEXFLOW_MOTION_CSS + '\n' + LEXFLOW_DENSITY_CSS + '\n' + LEXFLOW_TYPOGRAPHY_CSS + '\n' + LEXFLOW_INTERACTION_CSS
           document.head.appendChild(style)
           return () => { disposeOverride(); style.remove(); disposeHostSurface() }

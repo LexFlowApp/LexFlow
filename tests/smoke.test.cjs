@@ -231,6 +231,13 @@ test('native client patches supply a single LexFlow sidebar and routed center pa
   assert.match(shell, /panelInfo\.subscribe/)
   // 中心列：选中面板时按面板键渲染 main 键控条目，缺失时回落对话。
   assert.match(adapter, /entryKey: lexflowPage, fallback: renderSlot\("main", \{\}, \{ entryKey: "conversation" \}\)/)
+  // 样式归属标记：运行期注入的每个样式块必须打 data-plugin 归属标记，
+  // 否则会被底座模块系统认领给无关插件、随其重载误删，导致界面坍缩
+  //（2026-09-30 修复；已在调试实例中复现"删样式 → 崩坏、补回 → 恢复"）。
+  assert.match(shell, /style\.dataset\.plugin = '@lexflow\/ui-shell'/)
+  assert.match(adapter, /style\.dataset\.plugin = '@lexflow\/dsh-adapter'/)
+  const pagesTags = (pages.match(/\.dataset\.plugin = '@lexflow\/ui-pages'/g) ?? []).length
+  assert.equal(pagesTags, 3, 'ui-pages 的三个样式块都应带归属标记')
   assert.match(archive, /pages\.pages\.Workflow/)
   assert.match(workbench, /pages\.pages\.Workbench/)
 })
