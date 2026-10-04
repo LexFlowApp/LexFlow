@@ -836,26 +836,3 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   // 带返回箭头的一级页面仍用 44px 取值，返回箭头槽位不被削减。
   assert.match(adapter, /const clearance = `\$\{Math\.round\(right \+ 44\)\}px`/u)
 })
-
-test('配色方案可切换，且字体不随配色变化', () => {
-  const shellHost = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-shell', 'src', 'index.js'), 'utf8')
-  const shell = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-shell', 'src', 'client.js'), 'utf8')
-
-  // 宿主半边声明配色字段：渲染侧经 configForms.get 以同一命名空间读写。
-  assert.match(shellHost, /export const Config = z\.object/u)
-  assert.match(shellHost, /palette: z\.union\(\['lexflow', 'deepseek'\]\)/u)
-
-  // 切换的实现方式是「撤销令牌覆盖」而非另建一套配色：底座原生蓝白即由此透出。
-  assert.match(shell, /palette === 'deepseek' \? \(\) => \{\} : theme\.overrideTokens\('lexflow-appearance', LEXFLOW_TOKENS\)/u)
-  assert.match(shell, /disposeTokens\(\)/u)
-  // 下拉挂在官方通用设置分区，紧跟浅色／深色与字号，不另建页面。
-  assert.match(shell, /settings\.general\.item/u)
-  assert.match(shell, /id: 'lexflow-palette'/u)
-  // 两项可选值与默认值。
-  assert.match(shell, /\['lexflow', 'LexFlow 暖色'\], \['deepseek', 'DeepSeek 蓝白'\]/u)
-  assert.match(shell, /DEFAULT_PALETTE = 'lexflow'/u)
-  // 字体固定由 LEXFLOW_DENSITY_CSS 提供，不随配色切换：样式注入处不判断配色，
-// 只判断配色的是令牌覆盖。
-  assert.match(shell, /style\.textContent = LEXFLOW_MOTION_CSS \+ '\\n' \+ LEXFLOW_DENSITY_CSS/u)
-  assert.doesNotMatch(shell, /LEXFLOW_DENSITY_CSS[^\n]*palette/u)
-})

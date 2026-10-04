@@ -13,17 +13,6 @@ window.__ModuleLoader__.load({
     const toolButton = { ...button, borderRadius: '6px', fontSize: '12px', lineHeight: 1.3, padding: '4px 8px' }
     const input = { background: 'var(--lexflow-dsw-alias-bg-base)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', padding: '8px 10px' }
     const pages = [['conversation', '新对话'], ['workflow', '工作流'], ['archive', '档案室'], ['workbench', '工作台']]
-    // 配色方案设置：LexFlow 自有命名空间，不占用官方 ui-theme 的 preference/fontSize 字段。
-    // 值为 'lexflow'（默认，暖色调）时应用 LEXFLOW_TOKENS 覆盖；为 'deepseek' 时不覆盖，
-    // 底座原生蓝白配色透出。字体不随此切换（思源宋体由 LEXFLOW_DENSITY_CSS 固定）。
-    const PALETTE_SETTINGS_NAMESPACE = 'lexflow-appearance'
-    const PALETTE_FIELD = 'palette'
-    const PALETTES = [['lexflow', 'LexFlow 暖色'], ['deepseek', 'DeepSeek 蓝白']]
-    const DEFAULT_PALETTE = 'lexflow'
-    /** 把设置快照里的配色取值规整为受支持的两项之一。 */
-    function normalizePalette(value) {
-      return value === 'deepseek' ? 'deepseek' : DEFAULT_PALETTE
-    }
     /**
      * 官方装配里常驻的全局面板入口。
      * 席位 `sidebar.panellist` 有条目时由席位条目渲染（本项自动让位，避免重复）；
@@ -267,35 +256,6 @@ window.__ModuleLoader__.load({
         function LexFlowMark({ size }) { return jsx('img', { alt: 'LexFlow', src: 'data:image/png;base64,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', style: { height: size + 'px', objectFit: 'contain', width: size + 'px' } }) }
     function EmptyAgentPreset() { return null }
     function LexFlowName() { return jsx('span', { style: { letterSpacing: '.04em' }, children: 'LexFlow' }) }
-    /**
-     * 外观设置里的配色下拉。
-     *
-     * 注册到官方「通用」设置分区的条目席位（settings.general.item），与浅色／深色、
-     * 字号并列。该分区由 ui-settings-general 提供且未被 LexFlow 停用，故直接复用，
-     * 不另建页面。写入走适配层 settings.bind，与 apply() 中的令牌切换读同一份设置。
-     */
-    function PaletteRow({ scope }) {
-      const [palette, setPalette] = React.useState(() => {
-        const snapshot = scope.getSnapshot()
-        return snapshot.status === 'ready' ? normalizePalette(snapshot.value?.palette) : DEFAULT_PALETTE
-      })
-      React.useEffect(() => scope.subscribe(() => {
-        const snapshot = scope.getSnapshot()
-        setPalette(snapshot.status === 'ready' ? normalizePalette(snapshot.value?.palette) : DEFAULT_PALETTE)
-      }), [scope])
-      return jsxs('div', { style: { alignItems: 'center', borderBottom: '1px solid var(--lexflow-dsw-alias-border-l2)', display: 'flex', gap: '24px', justifyContent: 'space-between', padding: '16px 0' }, children: [
-        jsxs('div', { children: [
-          jsx('div', { style: { fontSize: '14px', fontWeight: '600' }, children: '配色方案' }),
-          jsx('div', { style: { color: 'var(--lexflow-dsw-alias-label-secondary)', fontSize: '12px', marginTop: '2px' }, children: 'LexFlow 暖色，或使用 DeepSeek 官方蓝白配色。字体不受此项影响。' })
-        ] }),
-        jsx('select', {
-          'aria-label': '配色方案',
-          onChange: (event) => { void scope.set(PALETTE_FIELD, event.target.value) },
-          style: { background: 'var(--lexflow-dsw-alias-bg-layer-1)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', fontFamily: 'inherit', fontSize: '13px', padding: '6px 10px' },
-          value: palette
-        }, PALETTES.map(([value, label]) => jsx('option', { key: value, value, children: label })))
-      ] })
-    }
     const NAV_ICONS = {
       conversation: jsx('svg', { fill: 'none', viewBox: '0 0 16 16', xmlns: 'http://www.w3.org/2000/svg', children: jsx('path', { d: 'M8 3.2v9.6M3.2 8h9.6', stroke: 'currentColor', strokeLinecap: 'round', strokeWidth: '1.5' }) }),
       workflow: jsxs('svg', { fill: 'none', viewBox: '0 0 18 18', xmlns: 'http://www.w3.org/2000/svg', children: [jsx('rect', { x: 2.5, y: 2.5, width: 5, height: 5, rx: 1.2, stroke: 'currentColor', strokeWidth: '1.25' }), jsx('rect', { x: 10.5, y: 10.5, width: 5, height: 5, rx: 1.2, stroke: 'currentColor', strokeWidth: '1.25' }), jsx('path', { d: 'M7.5 5H11a2 2 0 0 1 2 2v3.5M5 7.5V13h5.5', stroke: 'currentColor', strokeLinecap: 'round', strokeWidth: '1.25' })] }),
@@ -484,39 +444,16 @@ window.__ModuleLoader__.load({
         const slots = runtime.ui.slots
         const theme = runtime.ui.theme
         const disposeHostSurface = runtime.ui.compatibility.installHostSurface()
-        // 配色方案与外观分区里的下拉共享同一份设置：设置为 DeepSeek 蓝白时，
-        // 撤销 LexFlow 的令牌覆盖，底座原生配色透出；换回暖色则重新覆盖。
-        // overrideTokens 返回撤销函数，故两种状态都能干净地来回切换。
-        const paletteScope = runtime.ui.settings.bind({
-          namespace: PALETTE_SETTINGS_NAMESPACE,
-          decode: value => ({ palette: normalizePalette(value?.palette) })
-        })
-        let disposeTokens = () => {}
-        const applyPalette = (palette) => {
-          disposeTokens()
-          disposeTokens = palette === 'deepseek' ? () => {} : theme.overrideTokens('lexflow-appearance', LEXFLOW_TOKENS)
-        }
         runtime.lifecycle.effect(() => {
-          const applyStored = () => {
-            const snapshot = paletteScope.getSnapshot()
-            applyPalette(snapshot.status === 'ready' ? normalizePalette(snapshot.value?.palette) : DEFAULT_PALETTE)
-          }
-          applyStored()
-          const dispose = paletteScope.subscribe(applyStored)
+          const disposeOverride = theme.overrideTokens('lexflow-appearance', LEXFLOW_TOKENS)
           const style = document.createElement('style')
           style.dataset.lexflowAppearance = 'true'
           // 样式归属标记：防止被底座模块系统认领给无关插件、随其重载误删（2026-09-30 界面坍缩修复）。
           style.dataset.plugin = '@lexflow/ui-shell'
           style.textContent = LEXFLOW_MOTION_CSS + '\n' + LEXFLOW_DENSITY_CSS + '\n' + LEXFLOW_TYPOGRAPHY_CSS + '\n' + LEXFLOW_INTERACTION_CSS
           document.head.appendChild(style)
-          return () => { dispose(); disposeTokens(); disposeTokens = () => {}; style.remove(); disposeHostSurface() }
+          return () => { disposeOverride(); style.remove(); disposeHostSurface() }
         }, 'lexflow-ui-shell: palette and interaction')
-        // 配色下拉挂到官方「通用」设置分区，紧跟浅色／深色与字号之后。
-        slots.inject('settings.general.item', () => slots.register({
-          name: 'settings.general.item',
-          id: 'lexflow-palette',
-          order: 12
-        }, () => jsx(PaletteRow, { scope: paletteScope })))
         slots.inject('sidebar.brand.mark', () => slots.inject('sidebar.brand.name', () => slots.inject('conversation.hero.brand.mark', () => slots.inject('conversation.hero.agentPreset', () => slots.inject('sidebar.lexflow.nav', function* () {
           yield slots.register({ name: 'sidebar.brand.mark' }, LexFlowMark)
           yield slots.register({ name: 'sidebar.brand.name' }, LexFlowName)
