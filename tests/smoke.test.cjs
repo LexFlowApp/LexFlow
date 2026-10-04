@@ -804,20 +804,20 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   // protocolVersion === 1 为启用条件，不声明即保持关闭（产品基线要求不显示更新与兼容性）。
   // 只检查 dshDesktop 上是否真的挂了该字段；注释里说明它为何缺席不算违规。
   assert.doesNotMatch(preload, /exposeInMainWorld\('dshDesktop', \{[^}]*protocolVersion/u)
-  // 充值／用量页面由 dshPlatform 的三个方法驱动，覆盖在设置弹层之上的原生子窗口。
-  assert.match(preload, /exposeInMainWorld\('dshPlatform'/)
-  for (const method of ['open', 'setBounds', 'close']) {
-    assert.match(preload, new RegExp(`${method}: `, 'u'))
+  // 充值／用量页面不再由 LexFlow 内嵌原生子窗口承载（2026-10-04 用户实测：
+  // 子窗口跑到左上角、盖住官方返回按钮导致无法退出、且无法拖动）。
+  // 不注入 dshPlatform 即让官方账号插件跳过 AccountPlatformHost 注册，
+  // 充值入口自动降级为官方自带的外部浏览器跳转，LexFlow 不再维护任何窗口。
+  assert.doesNotMatch(preload, /dshPlatform/u)
+  for (const channel of ['lexflow:platform-open', 'lexflow:platform-set-bounds', 'lexflow:platform-close']) {
+    assert.equal(main.includes(channel), false)
+    assert.equal(preload.includes(channel), false)
   }
-  // 子窗口只加载官方 Platform 站点，页面 id 白名单化，不接受任意路径。
-  assert.match(main, /PLATFORM_ORIGIN = 'https:\/\/platform\.deepseek\.com'/u)
-  assert.match(main, /'top-up': '\/top_up'/u)
-  assert.match(main, /usage: '\/usage'/u)
-  assert.match(main, /LexFlow 不支持该账号页面/u)
-  // 子窗口不挂 LexFlow 的 preload，也不开放 Node。
-  assert.match(main, /partition: 'persist:lexflow-platform'/u)
-  assert.doesNotMatch(main, /nodeIntegration: true/u)
-  assert.match(main, /sandbox: true/u)
+  assert.doesNotMatch(main, /installPlatformIpc/u)
+  assert.doesNotMatch(main, /PLATFORM_ORIGIN/u)
+  assert.doesNotMatch(main, /platformWindow/u)
+  // 登录所需的 dshDesktop 仍然保留。
+  assert.match(preload, /exposeInMainWorld\('dshDesktop', \{\}\)/)
 
   // Agent 预设恢复启用：装配模板里不再有 ui-agent-preset 的停用行，
   // 其余官方界面插件仍照常停用。模板写在转义字符串中，故按片段匹配。
