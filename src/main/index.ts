@@ -115,7 +115,7 @@ async function ensureLexFlowDshProfile(): Promise<void> {
   }, null, 2) + '\n')
   await atomicWrite(path.join(profileRoot, 'cordis.yml'), '[]\n')
   await atomicWrite(path.join(profileRoot, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
-  await atomicWrite(profilePatchPath, `# LexFlow owns the product shell and business surfaces.\n# DeepSeek Harness remains the execution substrate; only its unstable seams are\n# consumed by @lexflow/dsh-adapter and the pinned workflow compatibility bundle.\n- id: ui-brand-official\n  disabled: true\n- id: ui-agent-preset\n  disabled: true\n- id: ui-layout\n  disabled: true\n- id: ui-sidebar\n  disabled: true\n- id: ui-model-selection\n  disabled: true\n- insert:\n    - id: lexflow-adapter\n      name: '@lexflow/dsh-adapter'\n    - id: lexflow-ui-pages\n      name: '@lexflow/ui-pages'\n    - id: lexflow-ui-shell\n      name: '@lexflow/ui-shell'\n    - id: lexflow-archive\n      name: '@lexflow/archive'\n      config:\n        workspaceRoot: ${JSON.stringify(paths.workspaceRoot)}\n        archiveRoot: ${JSON.stringify(paths.archiveRoot)}\n        draftsRoot: ${JSON.stringify(paths.draftsRoot)}\n        historyRoot: ${JSON.stringify(paths.historyRoot)}\n        trashRoot: ${JSON.stringify(paths.trashRoot)}\n        oldDataRoot: ${JSON.stringify(paths.oldDataRoot)}\n        defaultKnowledgeBaseRoot: ${JSON.stringify(paths.defaultKnowledgeBaseRoot)}\n        knowledgeBaseStatePath: ${JSON.stringify(paths.knowledgeBaseStatePath)}\n        userAgentPath: ${JSON.stringify(paths.userAgentPath)}\n    - id: lexflow-presets\n      name: '@lexflow/presets'\n    - id: lexflow-workbench\n      name: '@lexflow/workbench'\n    - id: lexflow-workflow\n      name: '@lexflow/workflow'\n`)
+  await atomicWrite(profilePatchPath, `# LexFlow owns the product shell and business surfaces.\n# DeepSeek Harness remains the execution substrate; only its unstable seams are\n# consumed by @lexflow/dsh-adapter and the pinned workflow compatibility bundle.\n- id: ui-brand-official\n  disabled: true\n- id: ui-layout\n  disabled: true\n- id: ui-sidebar\n  disabled: true\n- id: ui-model-selection\n  disabled: true\n- insert:\n    - id: lexflow-adapter\n      name: '@lexflow/dsh-adapter'\n    - id: lexflow-ui-pages\n      name: '@lexflow/ui-pages'\n    - id: lexflow-ui-shell\n      name: '@lexflow/ui-shell'\n    - id: lexflow-archive\n      name: '@lexflow/archive'\n      config:\n        workspaceRoot: ${JSON.stringify(paths.workspaceRoot)}\n        archiveRoot: ${JSON.stringify(paths.archiveRoot)}\n        draftsRoot: ${JSON.stringify(paths.draftsRoot)}\n        historyRoot: ${JSON.stringify(paths.historyRoot)}\n        trashRoot: ${JSON.stringify(paths.trashRoot)}\n        oldDataRoot: ${JSON.stringify(paths.oldDataRoot)}\n        defaultKnowledgeBaseRoot: ${JSON.stringify(paths.defaultKnowledgeBaseRoot)}\n        knowledgeBaseStatePath: ${JSON.stringify(paths.knowledgeBaseStatePath)}\n        userAgentPath: ${JSON.stringify(paths.userAgentPath)}\n    - id: lexflow-presets\n      name: '@lexflow/presets'\n    - id: lexflow-workbench\n      name: '@lexflow/workbench'\n    - id: lexflow-workflow\n      name: '@lexflow/workflow'\n`)
   // 0.1.5 新增的“在应用中打开”控件不属于 LexFlow 产品界面（用户核验时确认为多余），
   // 只停用其客户端半边，保留宿主半边供文件链接等既有能力使用。
   await atomicWrite(
@@ -522,6 +522,90 @@ function installWindowIpc(): void {
   })
 }
 
+// 官方账号与余额页面（充值、用量）的内嵌原生子窗口。
+//
+// 官方账号插件在 preload 暴露 dshPlatform 后，会用 open/setBounds/close 三个方法
+// 驱动一个覆盖在设置弹层之上的原生子窗口：open 传入页面 id 与容器几何，插件随后
+// 在容器尺寸变化时调 setBounds 同步位置，用户返回时调 close。这里按官方协议实现。
+//
+// 页面由官方 Platform 站点提供（dsh-deepseek-account-platform 的默认 origin
+// https://platform.deepseek.com，路径 /top_up 与 /usage）。子窗口只加载该地址，
+// 不注入 LexFlow 的 preload、不开放 Node，登录凭据由官方页面自行处理，LexFlow
+// 不代理其请求、不读取其内容。
+const PLATFORM_ORIGIN = 'https://platform.deepseek.com'
+const PLATFORM_PATHS: Readonly<Record<string, string>> = Object.freeze({
+  'top-up': '/top_up',
+  usage: '/usage',
+})
+let platformWindow: BrowserWindow | undefined
+
+/** 把渲染进程内容坐标换算为窗口坐标并调整子窗口；未打开时静默返回。 */
+function applyPlatformBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+  if (platformWindow === undefined || platformWindow.isDestroyed()) return
+  const width = Math.max(1, Math.round(bounds.width))
+  const height = Math.max(1, Math.round(bounds.height))
+  // 官方以容器的内容坐标给出位置；主窗口的边框与标题栏会偏移子窗口，故先换算。
+  const [x, y] = mainWindow?.getContentBounds() !== undefined
+    ? [Math.round(bounds.x), Math.round(bounds.y)]
+    : [0, 0]
+  platformWindow.setBounds({ x, y, width, height })
+}
+
+function closePlatformWindow(): void {
+  if (platformWindow === undefined) return
+  const win = platformWindow
+  platformWindow = undefined
+  if (!win.isDestroyed()) win.destroy()
+}
+
+function installPlatformIpc(): void {
+  ipcMain.handle('lexflow:platform-open', async (event, page: unknown, bounds: unknown) => {
+    const id = typeof page === 'string' ? page : ''
+    const pathname = PLATFORM_PATHS[id]
+    if (pathname === undefined) throw new Error(`LexFlow 不支持该账号页面：${id}`)
+    const box = typeof bounds === 'object' && bounds !== null
+      ? bounds as { x: number; y: number; width: number; height: number }
+      : { x: 0, y: 0, width: 0, height: 0 }
+    closePlatformWindow()
+    const url = `${PLATFORM_ORIGIN}${pathname}`
+    // 官方以 open 的 Promise 兑现表示加载完成；did-finish-load 后仍需等待页面可用，
+    // 否则官方会过早移除「加载中」态。使用 did-finish-load 作为完成信号，失败走 reject。
+    const win = new BrowserWindow({
+      width: Math.max(1, Math.round(box.width)),
+      height: Math.max(1, Math.round(box.height)),
+      show: false,
+      parent: mainWindow,
+      frame: false,
+      transparent: false,
+      backgroundColor: '#ffffff',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        // 不挂 LexFlow 的 preload：官方页面不需要 LexFlow 能力，且不应看到主窗口 IPC。
+        partition: 'persist:lexflow-platform',
+      },
+    })
+    platformWindow = win
+    win.on('closed', () => { if (platformWindow === win) platformWindow = undefined })
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => { reject(new Error('账号页面加载超时。')) }, 30_000)
+      win.webContents.once('did-finish-load', () => { clearTimeout(timer); resolve() })
+      win.webContents.once('did-fail-load', (_e, _code, description) => { clearTimeout(timer); reject(new Error(description || '账号页面加载失败。')) })
+      void win.loadURL(url).catch((error: unknown) => { clearTimeout(timer); reject(error instanceof Error ? error : new Error(String(error))) })
+    })
+    applyPlatformBounds(box)
+    if (!win.isDestroyed()) win.showInactive()
+    void event
+  })
+  ipcMain.handle('lexflow:platform-set-bounds', (_event, bounds: unknown) => {
+    if (typeof bounds === 'object' && bounds !== null) {
+      applyPlatformBounds(bounds as { x: number; y: number; width: number; height: number })
+    }
+  })
+  ipcMain.handle('lexflow:platform-close', () => { closePlatformWindow() })
+}
+
 async function createWindow(): Promise<BrowserWindow> {
   if (isQuitting) throw new Error('LexFlow 正在退出。')
   const serviceUrl = await startDsh()
@@ -591,6 +675,7 @@ app.whenReady().then(async () => {
   await pruneStaleDshAuthCookies()
   installMenu()
   installWindowIpc()
+  installPlatformIpc()
   await ensureMainWindow()
 }).catch((error) => { dialog.showErrorBox('LexFlow 启动失败', error instanceof Error ? error.message : String(error)); app.quit() })
 

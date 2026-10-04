@@ -230,7 +230,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.6.0"
+    const LEXFLOW_PRODUCT_VERSION = "0.6.1"
     const LEXFLOW_DSH_VERSION = "0.2.0-rc.2"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
@@ -276,12 +276,23 @@ window.__ModuleLoader__.load({
       // 直接 flex 项，而适配层只给了 titleCluster/tabs/headerUtilities 顺序，它取默认 order 0 被排到
       // 标题左侧。这里补 order 4，让它落到头部最右（“日志”右侧），与顶部其它项同一条中心线。
       'header[class*="wSkVaW_header"] div[class*="wSkVaW_headerCorner"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; order: 4 !important; }',
+      // 官方 Agent 预设恢复启用后，会在会话标题右侧注册一枚预设名标签（AgentPresetLabel，
+      // 官方类名 SVAs4q_label）。产品基线的顶部固定顺序为「标题与项目 → 对话 → 轨迹 →
+      // Session 日志」，不含预设名，故此处只隐藏该标签、保留其下方的会话本体功能：
+      // 设置分区与空白会话的预设选择标签照常可用，需要顶部显示时删掉本行即可。
+      // 官方每次构建会重新哈希类名，故按前缀匹配；该规则只作用于预设标签自身，
+      // 不影响 LexFlow 的项目名标签（lexflowHeaderWorkspace）。
+      'span[class*="SVAs4q_label"] { display: none !important; }',
       // 侧栏收起（含窄窗自动收起）时中心列从 x=0 起，标题会压住交通灯与 LexFlow 侧栏开关。
       // 安全区不再写死数值：--lexflow-leading-clearance 由 sweep() 按左侧栏开关按钮的实际
       // 右边界加 44px（28px 原有内边距 + 16px 箭头间隙）推导（窗口化 86+28+44=158、
       // 全屏 18+28+44=90 的等价结果），底座改按钮位置或宽度时自动跟随，不再复发重叠。
       // header 与 LexFlow 页面共用同一变量。
       '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
+      // 对话页顶部没有返回箭头，那 28px 槽位（--lexflow-leading-clearance 中为箭头预留的
+      // 部分）在此纯属空置，标题因此被推离侧栏开关约 28px（2026-10-04 用户反馈：半屏时
+      // 标题距左侧缩放按钮过远）。对话页只保留箭头与开关之间的 16px 可见间隙。
+      '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance-compact, 130px) !important; }',
       // LexFlow 一级页面（工作流／档案室／工作台／预览）收起时同样需要让出交通灯与开关安全区。
       '[data-sidebar-collapsed] .lexflowWorkflowPage, [data-sidebar-collapsed] .lexflowWorkbenchPage, [data-sidebar-collapsed] .lexflowWorkflowPreview { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
       // 底座右侧边栏在全屏形态（含窄窗自动全屏）下以 position:fixed inset:0 覆盖整窗，其顶部内容会与 macOS 交通灯重叠。为其顶部让出与 LexFlow 页面一致的安全区（42px）。
@@ -617,16 +628,20 @@ window.__ModuleLoader__.load({
             if (row.textContent !== label) row.textContent = label
           }
         }
-        // 收起态安全区跟随开关按钮实际几何：右边界 + 28px 原有内边距 + 16px 间距，
-        // 使返回箭头（占安全区最左 28px 槽位，见 ui-pages 的 [data-sidebar-collapsed] 规则）
-        // 与侧栏开关之间留出可见间隙。展开态页面左边界即侧栏宽度，本身已避开交通灯，
-        // 返回箭头保持页面内左缘 20px。
+        // 收起态安全区跟随开关按钮实际几何，两个取值按各自是否需要返回箭头分别发布：
+        //   --lexflow-leading-clearance         = 右边界 + 44px（28px 箭头槽位 + 16px 可见间隙），
+        //     供工作流／档案室／工作台等带返回箭头的页面使用；
+        //   --lexflow-leading-clearance-compact = 右边界 + 16px，仅保留可见间隙，
+        //     供对话页顶部使用——该处没有返回箭头，多留的 28px 会把标题推离侧栏开关。
+        // 展开态页面左边界即侧栏宽度，本身已避开交通灯，返回箭头保持页面内左缘 20px。
         const toggle = document.querySelector('.lexflowTopSidebarToggle')
         if (toggle) {
           const right = toggle.getBoundingClientRect().right
           const clearance = `${Math.round(right + 44)}px`
+          const compact = `${Math.round(right + 16)}px`
           const root = document.documentElement
           if (root.style.getPropertyValue('--lexflow-leading-clearance') !== clearance) root.style.setProperty('--lexflow-leading-clearance', clearance)
+          if (root.style.getPropertyValue('--lexflow-leading-clearance-compact') !== compact) root.style.setProperty('--lexflow-leading-clearance-compact', compact)
         }
         const modalOpen = Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [data-shell-overlay][data-open="true"], [data-lexflow-modal="true"]'))
         if (document.documentElement.dataset.lexflowModalOpen !== String(modalOpen)) {

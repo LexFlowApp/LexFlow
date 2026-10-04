@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.6.0')
+  assert.equal(packageJson.version, '0.6.1')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -791,4 +791,48 @@ test('workspace path boundaries reject symlink escapes', async () => {
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true })
   }
+})
+
+test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
+  const preload = fs.readFileSync(path.join(root, 'src', 'preload', 'index.ts'), 'utf8')
+  const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
+  const adapter = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'client.js'), 'utf8')
+
+  // 官方账号登录界面以 `("dshDesktop" in globalThis)` 为唯一启用判据；不注入即静默跳过。
+  assert.match(preload, /exposeInMainWorld\('dshDesktop', \{\}\)/)
+  // 只声明宿主身份、不声明 protocolVersion：官方更新通道与浏览器侧栏均以
+  // protocolVersion === 1 为启用条件，不声明即保持关闭（产品基线要求不显示更新与兼容性）。
+  // 只检查 dshDesktop 上是否真的挂了该字段；注释里说明它为何缺席不算违规。
+  assert.doesNotMatch(preload, /exposeInMainWorld\('dshDesktop', \{[^}]*protocolVersion/u)
+  // 充值／用量页面由 dshPlatform 的三个方法驱动，覆盖在设置弹层之上的原生子窗口。
+  assert.match(preload, /exposeInMainWorld\('dshPlatform'/)
+  for (const method of ['open', 'setBounds', 'close']) {
+    assert.match(preload, new RegExp(`${method}: `, 'u'))
+  }
+  // 子窗口只加载官方 Platform 站点，页面 id 白名单化，不接受任意路径。
+  assert.match(main, /PLATFORM_ORIGIN = 'https:\/\/platform\.deepseek\.com'/u)
+  assert.match(main, /'top-up': '\/top_up'/u)
+  assert.match(main, /usage: '\/usage'/u)
+  assert.match(main, /LexFlow 不支持该账号页面/u)
+  // 子窗口不挂 LexFlow 的 preload，也不开放 Node。
+  assert.match(main, /partition: 'persist:lexflow-platform'/u)
+  assert.doesNotMatch(main, /nodeIntegration: true/u)
+  assert.match(main, /sandbox: true/u)
+
+  // Agent 预设恢复启用：装配模板里不再有 ui-agent-preset 的停用行，
+  // 其余官方界面插件仍照常停用。模板写在转义字符串中，故按片段匹配。
+  assert.doesNotMatch(main, /- id: ui-agent-preset\\n  disabled: true/u)
+  assert.match(main, /- id: ui-brand-official\\n  disabled: true/u)
+  assert.match(main, /- id: ui-sidebar\\n  disabled: true/u)
+
+  // 顶部维持现状：只隐藏官方预设名标签，LexFlow 的项目名标签不受影响。
+  assert.match(adapter, /span\[class\*="SVAs4q_label"\] \{ display: none !important; \}/u)
+  assert.match(adapter, /lexflowHeaderWorkspace/)
+
+  // 对话页顶部无返回箭头，安全区只保留 16px 可见间隙，不再多留 28px 箭头槽位。
+  assert.match(adapter, /--lexflow-leading-clearance-compact/u)
+  assert.match(adapter, /const compact = `\$\{Math\.round\(right \+ 16\)\}px`/u)
+  assert.match(adapter, /setProperty\('--lexflow-leading-clearance-compact', compact\)/u)
+  // 带返回箭头的一级页面仍用 44px 取值，返回箭头槽位不被削减。
+  assert.match(adapter, /const clearance = `\$\{Math\.round\(right \+ 44\)\}px`/u)
 })
