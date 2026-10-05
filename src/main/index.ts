@@ -82,6 +82,45 @@ async function readUserSettingsEntries(patchPath: string): Promise<string> {
   return kept.length === 0 ? '' : `${kept.join('\n')}\n`
 }
 
+/**
+ * 底座随附、供用户在插件页开启的官方组合包。底座只在这些条目之间做区分：
+ * 不在此列的包由固定装配直接决定，用户的启停意图无法表达。
+ */
+const OPTIONAL_BUNDLE_NAMES = [
+  '@deepseek-ai/dsh-experimental-agent-team-profile',
+  '@deepseek-ai/dsh-experimental-voice-input-bundle',
+  '@deepseek-ai/dsh-experimental-auto-review',
+  '@deepseek-ai/dsh-experimental-schedule-bundle',
+] as const
+
+/**
+ * 摘出用户在插件页启用的官方组合包。
+ *
+ * 底座的插件管理器把组合包的启停写进 profile 的 package.json——
+ * `selectBundle()` 只改 `dsh.profile.bundles` 这一个数组，这是它记录
+ * 启用意图的唯一位置。而本文件每次启动都要重写 package.json（装配模板
+ * 需要刷新路径），若照 `readUserSettingsEntries` 那样对 bundles 也做保留，
+ * 用户在插件页开启的组合包每次启动都会被清空：表现为插件条目仍在列表中
+ * （组合包随安装附带、始终列出），但开关从「开」跳回「关」，且重启后依旧。
+ *
+ * 只保留底座 OPTIONAL_BUNDLES 白名单内的条目：必需的两个组合包由装配决定，
+ * 不该出现在这里；白名单之外的残留值（底座曾写入、现已卸载的包）会令底座
+ * 解析 profile 失败，进而导致整个应用无法启动，必须滤掉。
+ * @param manifestPath - profile 的 package.json 路径。
+ * @returns 用户启用的组合包名，按底座写入顺序排列。
+ */
+async function readEnabledBundles(manifestPath: string): Promise<string[]> {
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'))
+  } catch { return [] }
+  const recorded = (manifest as { dsh?: { profile?: { bundles?: unknown } } } | null)?.dsh?.profile?.bundles
+  if (!Array.isArray(recorded)) return []
+  return recorded.filter(
+    (name): name is string => typeof name === 'string' && (OPTIONAL_BUNDLE_NAMES as readonly string[]).includes(name),
+  )
+}
+
 async function ensureLexFlowDshProfile(): Promise<void> {
   const profileRoot = path.join(paths.runtimeRoot, 'profiles', 'web')
   const profileNodeModules = path.join(profileRoot, 'node_modules')
@@ -107,11 +146,16 @@ async function ensureLexFlowDshProfile(): Promise<void> {
   //      从而在底座按顺序合并时生效（后应用的补丁层优先级更高）。
   // 这样每次启动既刷新了 LexFlow 的装配与路径，又保留了用户的选择。
   const settingsEntries = await readUserSettingsEntries(profilePatchPath)
-  await atomicWrite(path.join(profileRoot, 'package.json'), JSON.stringify({
+  // 与 settingsEntries 同理：底座把官方组合包的启停记在 package.json 的
+  // bundles 数组里（selectBundle 的唯一写入点），整份重写会把用户在插件页
+  // 的选择清空，故先把已启用的组合包摘出来，写回时追加在必需组合包之后。
+  const profileManifestPath = path.join(profileRoot, 'package.json')
+  const enabledBundles = await readEnabledBundles(profileManifestPath)
+  await atomicWrite(profileManifestPath, JSON.stringify({
     name: 'lexflow-dsh-profile-web',
     private: true,
     dependencies: {},
-    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
+    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', ...enabledBundles] } },
   }, null, 2) + '\n')
   await atomicWrite(path.join(profileRoot, 'cordis.yml'), '[]\n')
   await atomicWrite(path.join(profileRoot, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
