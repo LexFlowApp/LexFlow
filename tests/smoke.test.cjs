@@ -836,3 +836,36 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   // 带返回箭头的一级页面仍用 44px 取值，返回箭头槽位不被削减。
   assert.match(adapter, /const clearance = `\$\{Math\.round\(right \+ 44\)\}px`/u)
 })
+
+test('插件页启用的官方组合包在重启后保留', () => {
+  const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
+
+  // 底座的 selectBundle() 只把启停写进 package.json 的 dsh.profile.bundles，
+  // 那是它记录启用意图的唯一位置。启动时整份重写 manifest 会让用户在插件页
+  // 开启的组合包每次启动都被清空——条目仍在列表中（组合包随安装附带），
+  // 但开关从「开」跳回「关」。故写回前必须摘出已启用的组合包。
+  assert.match(main, /readEnabledBundles/u)
+  assert.match(
+    main,
+    /bundles: \['@deepseek-ai\/dsh-base', '@deepseek-ai\/dsh-web-app', \.\.\.enabledBundles\]/u,
+    'package.json 写回时必须把已启用的组合包追加在必需组合包之后',
+  )
+  // 读出函数必须在写入前调用，否则读到的是即将被覆盖的内容。
+  assert.match(
+    main,
+    /const enabledBundles = await readEnabledBundles\(profileManifestPath\)[\s\S]*?atomicWrite\(profileManifestPath/u,
+    '必须先读出已启用的组合包，再写回 manifest',
+  )
+
+  // 白名单与底座 OPTIONAL_BUNDLES 一致，四个官方组合包全部覆盖。
+  for (const bundle of [
+    '@deepseek-ai/dsh-experimental-agent-team-profile',
+    '@deepseek-ai/dsh-experimental-voice-input-bundle',
+    '@deepseek-ai/dsh-experimental-auto-review',
+    '@deepseek-ai/dsh-experimental-schedule-bundle',
+  ]) {
+    assert.ok(main.includes(bundle), `白名单缺少 ${bundle}`)
+  }
+  // 必需组合包由装配决定，不应出现在保留名单里（否则会在 bundles 中重复）。
+  assert.equal(main.includes("'@deepseek-ai/dsh-base',\n  '@deepseek-ai/dsh-web-app',\n] as const"), false)
+})
