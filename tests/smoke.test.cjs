@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.6.2')
+  assert.equal(packageJson.version, '0.6.3')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -52,6 +52,30 @@ test('LexFlow keeps its own app identity assets', () => {
   assert.ok(fs.statSync(path.join(root, 'resources', 'fonts', 'SourceHanSerifSC-Regular.otf')).size > 20_000_000)
   assert.ok(fs.statSync(path.join(root, 'resources', 'fonts', 'SourceHanSerifSC-SemiBold.otf')).size > 20_000_000)
   assert.ok(fs.existsSync(path.join(root, 'resources', 'fonts', 'LICENSE.txt')))
+})
+
+test('成品图标母版不会被烘焙流程二次加工', () => {
+  // 母版有两种来源：满幅主图需 bake 抠白套圆角，美术交付的成品母版自带石板与圆角。
+  // 对成品再 bake 一次会按亮度阈值把石板抠掉约四分之一的不透明像素，图标损坏
+  //（2026-10-07 实测：995707 → 744872）。generate-icon.sh 以 ready 标记区分两者。
+  const script = fs.readFileSync(path.join(root, 'scripts', 'generate-icon.sh'), 'utf8')
+  assert.match(script, /checkpoint="\$root\/assets\/lexflow-icon-ready\.json"/u)
+  assert.match(script, /if \[ -f "\$checkpoint" \]; then/u)
+  assert.match(script, /母版为成品图标，跳过烘焙/u)
+  // 标记存在时母版必须存在，且确为带透明角的成品（四角 alpha 全 0）。
+  const checkpoint = path.join(root, 'assets', 'lexflow-icon-ready.json')
+  assert.ok(fs.existsSync(checkpoint), '成品母版标记缺失，打包会退回烘焙流程并损坏图标')
+  assert.ok(fs.existsSync(path.join(root, 'assets', 'lexflow-icon-1024.png')))
+  const icns = fs.readFileSync(path.join(root, 'assets', 'lexflow.icns'))
+  assert.equal(icns.toString('latin1', 0, 4), 'icns')
+  const kinds = []
+  for (let offset = 8; offset < Math.min(icns.readUInt32BE(4), icns.length);) {
+    const kind = icns.toString('latin1', offset, offset + 4)
+    kinds.push(kind)
+    assert.notEqual(['ic04', 'ic05', 'info'].includes(kind), true, `图标含旧式条目 ${kind}`)
+    offset += icns.readUInt32BE(offset + 4)
+  }
+  assert.equal(kinds.includes('ic10'), true, '图标缺少 1024 条目')
 })
 
 test('LexFlow opens the isolated DeepSeek Harness surface directly', () => {
@@ -663,6 +687,74 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   // 会把它剪成一条窄缝（用户 2026-09-28 反馈"横屏电影只看到右侧竖边"）。
   assert.match(lexflowUi, /data-lexflow-layout="rightbar"\] \{ min-height: 0; min-width: 0; overflow: visible !important/)
   assert.match(adapter, /data-lexflow-layout="rightbar"\] \{ min-width: 0; min-height: 0; overflow: visible !important/)
+  // 铺满形态的右栏必须盖住左侧栏：面板虽按 100vw 绘制，却位于右栏列内，而列带 z-index
+  // 会自建层叠上下文，面板自身层级越不过本列；左栏列 z-index: 3（ui-shell）高于右栏列 1，
+  // 会使左栏画在面板之上、遮住面板左半边内容（用户 2026-10-07 反馈）。
+  // 三条规则都以"铺满且已展开"为前提，并排形态与已收起状态不受影响。
+  assert.match(adapter, /\[data-lexflow-layout="rightbar"\]:has\(\[data-sidebar-right-panel="fullscreen"\]\[data-sidebar-right-open\]\) \{ z-index: 4 !important; \}/)
+  assert.match(adapter, /\[data-lexflow-layout="frame"\]:has\(\[data-sidebar-right-panel="fullscreen"\]\[data-sidebar-right-open\]\) \.lexflowTopSidebarToggle \{ display: none !important; \}/)
+  assert.match(adapter, /\[data-lexflow-layout="frame"\]:has\(\[data-sidebar-right-panel="fullscreen"\]\[data-sidebar-right-open\]\) \[data-lexflow-layout="sidebar"\] \{ pointer-events: none !important; \}/)
+  // 铺满面板必须自己画出底色：底座的面板本体背景是透明的，只有内部 dock 承载内容，
+  // 于是未被 dock 覆盖的区域会透出下方界面——顶部那条 42px 让位安全区正是这样把对话
+  // 头部（标题／智能体团队／项目／对话／轨迹）漏了出来（用户 2026-10-08 反馈）。
+  // 底色必须画在 dock 上，不能画在面板容器上：容器收起时靠 dock 滑出隐藏，容器若带
+  // 不透明底色，收起后底色仍留在原位（铺满时是整窗大小）把对话盖住（用户 2026-10-08 反馈）。
+  assert.match(adapter, /\[data-sidebar-right-panel="fullscreen"\] \[data-dockkit-host="dock"\] \{ background: var\(--dsw-alias-bg-base\) !important; \}/)
+  assert.doesNotMatch(adapter, /\[data-sidebar-right-panel="fullscreen"\] \{ background: var\(--dsw-alias-bg-base\) !important; \}/)
+  assert.doesNotMatch(adapter, /data-sidebar-right-panel="fullscreen"\] \{ padding-top: 42px !important; \}/)
+  // 交通灯与标签栏同一行、文件名在交通灯右侧（用户选定方案 A，即底座 darwin 原生排法）：
+  // 底座靠 html[data-platform="darwin"] 下发 --dsh-dockkit-strip-inline-start: 88px，
+  // 而它只读不写该属性，必须由桌面外壳设置。LexFlow 此前从未写入，底座的 macOS
+  // 避让规则全部落空。
+  assert.match(adapter, /documentElement\.dataset\.platform = navigator\.userAgent\.includes\('Macintosh'\) \? 'darwin' : 'web'/)
+  assert.match(adapter, /if \(wrotePlatform\) delete documentElement\.dataset\.platform/)
+  assert.match(adapter, /\[data-sidebar-right-panel="fullscreen"\] \[class\*="tabStrip"\] \{ padding-top: 14px !important; \}/)
+  assert.match(adapter, /html\[data-fullscreen\] \[data-lexflow-layout="rightbar"\] \[data-sidebar-right-panel="fullscreen"\] \[class\*="tabStrip"\] \{ padding-top: 6px !important; \}/)
+  // 左栏列的 z-index 必须低于铺满时抬升后的右栏列（4），否则遮挡会复发。
+  assert.match(lexflowUi, /\[data-lexflow-layout="sidebar"\] \{ background:[^']*z-index: 3 !important; \}/)
+  // 左栏展开即收起右侧边栏（2026-10-07 用户确认的策略）：两栏并存会把中央列压到
+  // 放不下，右栏只剩一条窄缝。只在「收起 → 展开」方向触发，避免来回横跳。
+  assert.match(adapter, /collapseRightbarPane: \(\) => \{ collapseSidebarRightImpl\(\) \}/)
+  assert.match(adapter, /if \(!was \|\| sidebarCollapsed \|\| typeof collapseRightbarPane !== "function"\) return;/)
+  // 该块的取值必须出现在 sidebarCollapsed 声明之后。放在声明之前会触发
+  // "Cannot access 'sidebarCollapsed' before initialization"，root 席位整体崩溃、
+  // 应用窗口打不开（2026-10-07 实际发生；node --check 只查语法，查不出这类 TDZ 错误）。
+  {
+    const body = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'client.js'), 'utf8')
+    const declaration = body.indexOf('const sidebarCollapsed = narrow ?')
+    const usage = body.indexOf('const leftbarWasCollapsed = (0, react.useRef)(sidebarCollapsed)')
+    assert.notEqual(declaration, -1, 'sidebarCollapsed 声明缺失')
+    assert.notEqual(usage, -1, '左栏展开收起右栏的记忆块缺失')
+    assert.ok(declaration < usage, 'sidebarCollapsed 必须在左栏展开收起右栏的记忆块之前声明')
+  }
+  assert.match(adapter, /function collapseSidebarRightImpl\(\)/)
+  assert.match(adapter, /typeof service\.toggleExpanded !== 'function'/)
+  // 收起动作必须通过模块级 layoutCtx 取 ctx：root 席位的注册代码与 AppFrame 在另一个
+  // 作用域里，那里没有 ctx，直接写 collapseSidebarRightImpl(ctx) 会抛 "ctx is not defined"，
+  // root 席位崩溃、界面卡死（2026-10-07 实际发生两次）。
+  assert.match(adapter, /let layoutCtx/)
+  assert.match(adapter, /layoutCtx = ctx/)
+  // 只在可执行代码里查这个写法：源码注释中以它作为反例引用，注释本身不算违规。
+  {
+    const code = adapter.replace(/\/\*[\s\S]*?\*\//gu, '').split('\n').map((line) => line.replace(/\/\/.*$/u, '')).join('\n')
+    assert.doesNotMatch(code, /collapseSidebarRightImpl\(ctx\)/)
+  }
+  assert.doesNotMatch(adapter, /collapseRightbarPane: \(\) => \{ collapseSidebarRightImpl\(ctx\) \}/)
+  // 调用必须延后到宏任务：底座收起右栏走 react-dom flushSync，在 effect 内直接调用
+  // 会在 React 提交周期中再触发一次同步提交，且抛错会打掉整棵树。
+  assert.match(adapter, /const timer = window\.setTimeout\(\(\) => \{ collapseRightbarPane\(\) \}, 0\)/)
+  // 实现整体包在 try 内：本函数从 effect 调用，抛出会经 root 席位错误边界打掉界面树。
+  assert.match(adapter, /function collapseSidebarRightImpl\(\) \{\n\t*\/\/ 整体包在 try 内/)
+  // 顶部右段（「已应用 N」与「日志」）在列宽不足时自动收起：头部是 nowrap 单行 flex，
+  // 不收起只能被裁切或与右栏重叠。容器查询挂在中央列（LexFlow 自有节点），
+  // 不给底座渲染的 header 加 contain。
+  assert.match(adapter, /\[data-lexflow-layout="center"\] \{ container-type: inline-size !important; container-name: lexflowCenter; \}/)
+  assert.match(adapter, /@container lexflowCenter \(max-width: 560px\) \{ \[data-slot="conversation\.session\.header\.utilities"\] \{ display: none !important; \} \}/)
+  // 信息带纵向基准改由 row 实际几何发布，不再写死 14px：贴图后附件缩略图区会插到
+  // row 前面，写死的值会让上下文／统计与权限行脱开、浮到对话正文上。
+  assert.match(adapter, /top: var\(--lexflow-composer-band-y, 14px\) !important/)
+  assert.doesNotMatch(adapter, /JObwrW_root"\] \{ left: 48px !important; position: absolute !important; top: 14px/)
+  assert.match(adapter, /root\.style\.setProperty\('--lexflow-composer-band-y', band\)/)
   // 列宽调整器回归：EvIC1a_column 的 max-width 由 --dsh-chat-content-width 驱动，
   // 是底座原生拖拽改宽的目标属性；适配层若对该元素施加 max-width／min-width 会让调整器失效。
   assert.doesNotMatch(adapter, /\[class\*="EvIC1a_column"\][^']*max-width/)
