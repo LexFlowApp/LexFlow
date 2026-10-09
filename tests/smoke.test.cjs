@@ -708,6 +708,16 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   // 避让规则全部落空。
   assert.match(adapter, /documentElement\.dataset\.platform = navigator\.userAgent\.includes\('Macintosh'\) \? 'darwin' : 'web'/)
   assert.match(adapter, /if \(wrotePlatform\) delete documentElement\.dataset\.platform/)
+  // 补写 data-platform="darwin" 后，底座的
+  // `html[data-platform=darwin] body > :not(#root) { -webkit-app-region: no-drag }`
+  // 首次生效，把顶部拖拽条（body 的直接子元素、id 不是 root）压成 no-drag，
+  // 表现为"鼠标放到顶部无法拖动窗口"（用户 2026-10-09 反馈）。
+  // 该条必须带 !important 才能压过底座规则。
+  assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important;/)
+  assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag; /)
+  // LexFlow 从未在 <html> 上设置 data-fullscreen（它设在 frame 元素上），
+  // 故 html[data-fullscreen] 型选择器一律空转，不得依赖。
+  assert.doesNotMatch(adapter, /html\[data-fullscreen\] #lexflow-window-drag-bar/)
   assert.match(adapter, /\[data-sidebar-right-panel="fullscreen"\] \[class\*="tabStrip"\] \{ padding-top: 14px !important; \}/)
   assert.match(adapter, /html\[data-fullscreen\] \[data-lexflow-layout="rightbar"\] \[data-sidebar-right-panel="fullscreen"\] \[class\*="tabStrip"\] \{ padding-top: 6px !important; \}/)
   // 左栏列的 z-index 必须低于铺满时抬升后的右栏列（4），否则遮挡会复发。

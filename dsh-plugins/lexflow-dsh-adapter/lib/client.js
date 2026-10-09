@@ -588,7 +588,13 @@ window.__ModuleLoader__.load({
       '[data-chat-flow-kind="turn-process"][data-lexflow-flowing-order="true"] { order: 99 !important; }',
       // 鼠标点击过程条（含"用时"）不显示焦点框；键盘 Tab 到达时仍保留可见焦点。
       '[data-chat-running]:focus:not(:focus-visible) { outline: none !important; }',
-      '#lexflow-window-drag-bar { -webkit-app-region: drag; height: 22px; left: 0; position: fixed; right: 0; top: 0; z-index: 5; }',
+      // 顶部拖拽条：窗口化状态下整条 22px 是窗口拖拽区。
+      // 必须带 !important——底座在 darwin 下有一条
+      // `html[data-platform=darwin] body > :not(#root) { -webkit-app-region: no-drag }`，
+      // 本条正是 body 的直接子元素且 id 不是 root，会被该规则压成 no-drag，
+      // 表现为"鼠标放到顶部无法拖动窗口"（用户 2026-10-09 反馈）。
+      // 该规则自 LexFlow 补写 data-platform="darwin" 后才首次生效，故问题与那次改动同时出现。
+      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: 22px; left: 0; position: fixed; right: 0; top: 0; z-index: 5; }',
       'div[class*="logoRow"] button { -webkit-app-region: no-drag; }',
       // 0.1.5 把封面标题容纳类从 headlineText 改为 titleGroup（标题与“预览版”标签同层）。
       // 选择器同时保留旧类名，底座再次改动时不影响旧分支的可读性。
