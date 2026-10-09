@@ -227,10 +227,13 @@ window.__ModuleLoader__.load({
      * face and never query those nodes themselves.
      */
     const HOST_SURFACE_STYLE_ID = 'lexflow-host-surface-compatibility'
+    // 底座客户端上下文（cordis ctx）的模块级持有：root 席位的注册代码与 AppFrame 在
+    // 另一个作用域里，那里取不到 ctx；由 clientAdapter 启动时写入，供跨作用域读取服务。
+    let layoutCtx
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.6.2"
+    const LEXFLOW_PRODUCT_VERSION = "0.6.3"
     const LEXFLOW_DSH_VERSION = "0.2.0-rc.2"
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
@@ -276,6 +279,19 @@ window.__ModuleLoader__.load({
       // 直接 flex 项，而适配层只给了 titleCluster/tabs/headerUtilities 顺序，它取默认 order 0 被排到
       // 标题左侧。这里补 order 4，让它落到头部最右（“日志”右侧），与顶部其它项同一条中心线。
       'header[class*="wSkVaW_header"] div[class*="wSkVaW_headerCorner"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; order: 4 !important; }',
+      // 顶部右段（「已应用 N」与「日志」）在列宽不足时自动收起：头部是 nowrap 的单行 flex，
+      // 中央列被右栏或窄窗压窄时这两项既不换行也不隐藏，只能被裁切、或与右栏相互重叠
+      //（2026-10-07 用户反馈"无法正常缩回"）。改为按头部自身宽度判定，放不下就整段收起，
+      // 空间够时照常显示；容器查询因此比窗口宽度断点准确——被压窄的是列，不是窗口。
+      // 阈值只算「非标题内容」的实测总需：页签约 60px + 右上两项约 100px + 最右图标约 90px
+      // + 三处 12px 间距 36px ≈ 286px，再给标题与项目名留约 250px 可读宽度。
+      // 注意：这里只收「已应用／日志」，不收最右的右栏开关——那是重新打开右栏的唯一可见入口，
+      // 收掉会让用户无法再展开右栏（与用户选项的差异已在汇报中说明）。
+      // 容器查询挂在中央列而非 header 上：header 由底座渲染，给它加 contain 会改变其
+      // 绝对定位子项的包含块与层叠上下文；中央列是 LexFlow 自有节点、已是隔离的溢出容器，
+      // 且宽度由栅格轨道决定（含 inline-size 收敛不影响其尺寸）。
+      '[data-lexflow-layout="center"] { container-type: inline-size !important; container-name: lexflowCenter; }',
+      '@container lexflowCenter (max-width: 560px) { [data-slot="conversation.session.header.utilities"] { display: none !important; } }',
       // 官方 Agent 预设恢复启用后，会在会话标题右侧注册一枚预设名标签（AgentPresetLabel，
       // 官方类名 SVAs4q_label）。产品基线的顶部固定顺序为「标题与项目 → 对话 → 轨迹 →
       // Session 日志」，不含预设名，故此处只隐藏该标签、保留其下方的会话本体功能：
@@ -295,8 +311,27 @@ window.__ModuleLoader__.load({
       '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance-compact, 130px) !important; }',
       // LexFlow 一级页面（工作流／档案室／工作台／预览）收起时同样需要让出交通灯与开关安全区。
       '[data-sidebar-collapsed] .lexflowWorkflowPage, [data-sidebar-collapsed] .lexflowWorkbenchPage, [data-sidebar-collapsed] .lexflowWorkflowPreview { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
-      // 底座右侧边栏在全屏形态（含窄窗自动全屏）下以 position:fixed inset:0 覆盖整窗，其顶部内容会与 macOS 交通灯重叠。为其顶部让出与 LexFlow 页面一致的安全区（42px）。
-      '[data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] { padding-top: 42px !important; }',
+      // 铺满形态的底色必须画在 dock 上，不能画在面板容器上。
+      // 底座的面板容器本身是透明且 pointer-events:none 的，收起时靠把内部 dock
+      // 整体滑出视口（transform: translateX(var(--dsh-sidebar-width)) + visibility:hidden）
+      // 来隐藏内容。若给容器加不透明底色，收起后 dock 滑走而底色仍在原位（铺满时
+      // 是整窗大小），会把对话完全盖住、看起来像"对话无法显示"（用户 2026-10-08 反馈，
+      // 实测收起后面板容器仍为 1180×760 不透明矩形）。
+      // 画在 dock 上则随 dock 一起滑出，收起后不留痕迹。
+      // 之所以需要底色：dock 自身背景透明，铺满时未被它覆盖的顶部条（状态栏安全区）
+      // 会透出下方对话头部（标题／项目／对话／轨迹）——用户同日反馈的另一现象。
+      '[data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] [data-dockkit-host="dock"] { background: var(--dsw-alias-bg-base) !important; }',
+      // 交通灯与标签栏改为同一行、文件名落在交通灯右侧（用户 2026-10-08 选定方案 A，
+      // 即底座在 darwin 下的原生排法）。底座靠 [data-platform=darwin] 给铺满面板的
+      // 标签栏下发 --dsh-dockkit-strip-inline-start: 88px（dockkit 的 _tabStrip 用
+      // padding-inline-start 消费它），LexFlow 此前从未设置该属性，底座的整套 macOS
+      // 避让规则因此全部落空。属性由适配层在启动时写入（见 installHostSurfaceCompatibility）。
+      // 这里只保留竖向的少量呼吸间距，水平起点交给底座自己的变量。
+      '[data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] { padding-top: 0 !important; }',
+      '[data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] [class*="tabStrip"] { padding-top: 14px !important; }',
+      // 全屏（macOS 原生全屏）下没有交通灯，底座自身会把起点收回 10px；此处的
+      // 顶部间距同样收回，避免多出一条空带。
+      'html[data-fullscreen] [data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] [class*="tabStrip"] { padding-top: 6px !important; }',
       '@media (max-width: 900px) { header[class*="wSkVaW_header"] { gap: 8px !important; padding-right: 12px !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { gap: 8px !important; margin-right: 8px !important; } header[class*="wSkVaW_header"] .wSkVaW_crumb { max-width: min(180px, 24vw) !important; } }',
       '@media (max-width: 700px) { header[class*="wSkVaW_header"] { align-items: stretch !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 4px !important; min-height: 116px !important; overflow: hidden !important; } header[class*="wSkVaW_header"] > div[class*="titleRow"] { align-items: stretch !important; display: block !important; flex: 0 0 auto !important; max-width: 100% !important; min-width: 0 !important; order: 1 !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="titleCluster"] { flex: 0 0 auto !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_headerUtilities"] { align-self: flex-start !important; margin-left: 0 !important; order: 2 !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { align-self: flex-start !important; margin-left: 0 !important; margin-right: 0 !important; order: 2 !important; } }',
       '[data-lexflow-layout="frame"] { isolation: isolate; min-width: 0; min-height: 0; position: relative; }',
@@ -308,6 +343,18 @@ window.__ModuleLoader__.load({
       //（用户 2026-09-28 反馈"横屏电影在竖屏手机上只看到右侧竖边"）。
       '[data-lexflow-layout="rightbar"] { min-width: 0; min-height: 0; overflow: visible !important; position: relative; }',
       '[data-lexflow-layout="rightbar"] { background: var(--dsw-alias-bg-base); z-index: 1; }',
+      // 铺满形态的面板必须真正盖住左侧栏。底座面板按 100vw 绘制、铺满整窗，但它位于右栏列内，
+      // 而列带 z-index 会自建层叠上下文——面板自身的层级无法越过本列。LexFlow 给左栏列设了
+      // z-index: 3（ui-shell）、右栏列只有 1，于是左栏画在面板之上，把面板左半边的内容盖住
+      //（用户 2026-10-07 反馈：铺满后标签栏与正文左侧被截）。铺满且已展开时把右栏列抬到左栏之上；
+      // 并排（push）形态与"铺满但已收起"都不匹配，行为不受影响。
+      '[data-lexflow-layout="rightbar"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) { z-index: 4 !important; }',
+      // 铺满时左栏已被整幅面板盖住，它自身与浮在其上的开关都不应再可交互：
+      // 开关是 fixed 浮层（z-index 30），会浮在面板之上，此时点它要么看不见反馈、
+      // 要么触发"展开左栏→收起右栏"，都与眼前看到的面板无关，属误导性控件；
+      // 左栏列若仍接收点击，面板内 pointer-events: none 的空白处会把点击漏给看不见的左栏按钮。
+      '[data-lexflow-layout="frame"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) .lexflowTopSidebarToggle { display: none !important; }',
+      '[data-lexflow-layout="frame"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) [data-lexflow-layout="sidebar"] { pointer-events: none !important; }',
       '[data-lexflow-layout="center"] > *, [data-lexflow-layout="center"] [data-slot="conversation.session"] { max-width: 100%; min-width: 0; }',
       '[data-lexflow-layout="center"] > [class*="wSkVaW_root"] { isolation: isolate; overflow: hidden !important; position: relative; }',
       '[data-lexflow-layout="center"] > [class*="wSkVaW_root"]::before { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 96%, transparent) 0%, color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent) 54%, transparent 100%); content: ""; height: 104px; inset: 0 0 auto; pointer-events: none; position: absolute; z-index: 2; }',
@@ -457,9 +504,13 @@ window.__ModuleLoader__.load({
       // 二者组合下，dock 的左右缘在任何窗口宽度都与 card 一致。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] { height: 0 !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; width: calc(100% - 2 * var(--dsh-composer-side-clearance)) !important; max-width: var(--dsh-composer-card-max-width) !important; min-height: 0 !important; padding: 0 !important; position: absolute !important; top: 0 !important; z-index: 2 !important; }',
       // 上下文计量器接在权限触发器之后：8(row 内边距) + 28(权限) + 12(间距) = 48px。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 48px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      // 纵向基准 --lexflow-composer-band-y 由 sweep() 按 row 的实际几何发布：row 是
+      // 卡片里第一个在流子项这一前提一旦被打破（例如贴图后出现的附件缩略图区），
+      // 写死的 14px 就会让这两个按钮与权限行脱开、浮到正文上（2026-10-07 用户反馈
+      // "发送图片后把对话上的工具顶上去"）。14px 仅作为变量缺席时的兜底。
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 48px !important; position: absolute !important; top: var(--lexflow-composer-band-y, 14px) !important; transform: translateY(-50%) !important; }',
       // 统计胶囊接在上下文之后：8 + 28(权限) + 12 + 22(上下文) + 12 = 82px。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { left: 82px !important; position: absolute !important; top: 14px !important; transform: translateY(-50%) !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { left: 82px !important; position: absolute !important; top: var(--lexflow-composer-band-y, 14px) !important; transform: translateY(-50%) !important; }',
       // 新对话没有上下文计量器，统计胶囊需整体左移补位，否则权限与统计之间会空出一格：
       // 8 + 28(权限) + 12 = 48px。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"]:not(:has([class~="JObwrW_root"])) [data-composer-stats] { left: 48px !important; }',
@@ -556,6 +607,15 @@ window.__ModuleLoader__.load({
       style.dataset.plugin = '@lexflow/dsh-adapter'
       style.textContent = HOST_SURFACE_CSS
       document.head.appendChild(style)
+      // 宿主平台标记：底座整套 macOS 专属规则都以 html[data-platform="darwin"] 为前提
+      //（右侧边栏铺满时给标签栏下发 --dsh-dockkit-strip-inline-start: 88px 以避开交通灯、
+      // 窗口拖动区、frame 顶部安全区等），而底座自身只读不写，必须由桌面外壳设置。
+      // LexFlow 此前从未写入该属性，底座的避让规则全部落空——铺满面板的标签栏因此紧贴
+      // 左边、被交通灯压住（用户 2026-10-08 反馈）。此处按渲染进程的平台补齐。
+      // 属性挂在 <html> 上、不属于任何 React 子树，卸载时移除，避免污染下一次挂载。
+      const documentElement = document.documentElement
+      const wrotePlatform = documentElement.dataset.platform === undefined
+      if (wrotePlatform) documentElement.dataset.platform = navigator.userAgent.includes('Macintosh') ? 'darwin' : 'web'
       let pending = false
       const captures = new Map()
       const capture = (event) => { if (event.target?.matches?.('.lexflowFrame_handle, [class*="wSkVaW_widthHandle"]')) captures.set(event.pointerId, event.target) }
@@ -643,6 +703,18 @@ window.__ModuleLoader__.load({
           if (root.style.getPropertyValue('--lexflow-leading-clearance') !== clearance) root.style.setProperty('--lexflow-leading-clearance', clearance)
           if (root.style.getPropertyValue('--lexflow-leading-clearance-compact') !== compact) root.style.setProperty('--lexflow-leading-clearance-compact', compact)
         }
+        // 信息带（dock）的纵向基准：dock 脱离文档流、高 0，其内两个按钮按
+        // --lexflow-composer-band-y 定位到「权限那一行」的中线。该中线由 row 的实际
+        // 几何算出，而不是写死 14px——row 一旦不再位于卡片顶端（贴图后的附件缩略图区
+        // 会插在它前面），写死的值就会与权限行脱开、按钮浮到对话正文上。
+        // 取 row 相对卡片的顶边加一半行高，得到与权限触发器同一条中心线。
+        for (const root of document.querySelectorAll('[class*="uV2eYG_root"]')) {
+          if (root.classList.contains('uV2eYG_hero') || /uV2eYG_hero/.test(root.className)) continue
+          const row = root.querySelector('[class*="uV2eYG_row"]')
+          if (row === null) continue
+          const band = `${Math.round(row.offsetTop + row.offsetHeight / 2)}px`
+          if (root.style.getPropertyValue('--lexflow-composer-band-y') !== band) root.style.setProperty('--lexflow-composer-band-y', band)
+        }
         const modalOpen = Boolean(document.querySelector('[role="dialog"][aria-modal="true"], [data-shell-overlay][data-open="true"], [data-lexflow-modal="true"]'))
         if (document.documentElement.dataset.lexflowModalOpen !== String(modalOpen)) {
           document.documentElement.dataset.lexflowModalOpen = String(modalOpen)
@@ -686,6 +758,9 @@ window.__ModuleLoader__.load({
         document.removeEventListener('gotpointercapture', capture, true)
         document.removeEventListener('lostpointercapture', release, true)
         delete document.documentElement.dataset.lexflowModalOpen
+        // 只回收本次写入的平台标记：若同一文档里已有其他写者（例如宿主外壳自己设置过），
+        // 保留其值不动。
+        if (wrotePlatform) delete documentElement.dataset.platform
         document.removeEventListener('click', onSessionRowClick, true)
         window.removeEventListener('resize', updateSessionTitles)
         style.remove()
@@ -969,7 +1044,7 @@ window.__ModuleLoader__.load({
 					return WorkspacePage ? (0, react_jsx_runtime.jsx)(WorkspacePage, { page, document }) : (0, react_jsx_runtime.jsx)(LexFlowPlaceholder, { page, document });
 				}
 		/** The three-column frame (see module doc). */
-    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel, resetPanel }) {
+    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel, resetPanel, collapseRightbarPane }) {
 			const [lexflowPage, setLexFlowPage] = (0, react.useState)("conversation");
 			const [lexflowDocument, setLexFlowDocument] = (0, react.useState)(null);
 			const [fullScreen, setFullScreen] = (0, react.useState)(() => Boolean(window.lexflowWindow?.isFullScreen?.()));
@@ -1031,6 +1106,24 @@ window.__ModuleLoader__.load({
 				actions.setNarrow(narrow);
 			}, [actions, narrow]);
 			const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0;
+			// 左栏展开即收起右侧边栏（2026-10-07 用户确认的策略）：两者并排时
+			// 中央列被压到两端都放不下的地步，右栏最终被挤成一条 55px 窄缝。
+			// 只在「收起 → 展开」这一方向触发，左栏再收起时不自动重开右栏，
+			// 避免来回横跳；用户点右栏图标可随时重新打开。
+			// 注意：本块必须位于 sidebarCollapsed 定义之后——放在前面会触发
+			// "Cannot access 'sidebarCollapsed' before initialization"，root 席位整体崩溃、窗口打不开。
+			const leftbarWasCollapsed = (0, react.useRef)(sidebarCollapsed);
+			(0, react.useEffect)(() => {
+				const was = leftbarWasCollapsed.current;
+				leftbarWasCollapsed.current = sidebarCollapsed;
+				if (!was || sidebarCollapsed || typeof collapseRightbarPane !== "function") return;
+				// 交给宏任务执行：底座收起右栏经 openWithFocus 走 react-dom 的 flushSync
+				// 同步提交布局，直接在 effect 里调用会在 React 自己的提交周期内再触发一次
+				// 同步提交；本函数又由 root 席位承载，一旦抛出会把整棵界面树打掉（卡死）。
+				// 延后到当前提交结束之后执行，两个风险都不再成立。
+				const timer = window.setTimeout(() => { collapseRightbarPane() }, 0);
+				return () => { window.clearTimeout(timer) };
+			}, [sidebarCollapsed, collapseRightbarPane]);
 			const sidebarPreference = sidebarCollapsed ? 0 : panels.sidebar === 0 ? 260 : panels.sidebar;
 			const cols = computeColumns(viewport, sidebarPreference, panels.rightbar);
 			// 右侧边栏的 canShow 是"能力"语义：若能显示右栏是否放得下，与底座 dsh-client-ui-layout 的
@@ -1173,6 +1266,30 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region lib/types/client/service.js
+		/**
+		 * 收起底座的右侧边栏。左侧栏展开时框架需要主动让右栏收起：两栏并存会把中央列
+		 * 压到放不下，右栏只剩一条窄缝（2026-10-07 用户确认的策略）。
+		 * 底座未提供 sidebarRight 服务（或版本变动）时返回 false，调用方静默跳过。
+		 *
+		 * ctx 由 clientAdapter 在启动时绑定到 layoutCtx：root 席位的注册代码在
+		 * 另一个作用域里，那里拿不到 ctx（2026-10-07 实测写成 `collapseSidebarRightImpl(ctx)`
+		 * 会抛 "ctx is not defined"，root 席位崩溃、窗口打不开）。
+		 * @returns 是否已成功发出收起动作。
+		 */
+		function collapseSidebarRightImpl() {
+			// 整体包在 try 内：本函数从 React effect 里被调用，一旦抛出会经 root 席位的
+			// 错误边界把整棵界面树打掉（表现为界面卡死）。任何失败都只退化为"不收右栏"。
+			try {
+				const ctx = layoutCtx
+				if (ctx === undefined) return false
+				const service = typeof ctx.get === 'function' ? ctx.get('sidebarRight') : ctx['sidebarRight']
+				if (service === undefined || typeof service.toggleExpanded !== 'function' || typeof service.isExpanded !== 'function') return false
+				// 底座 toggleExpanded 会经 openWithFocus 走 flushSync 提交布局；只在确实展开时
+				// 调用，避免对已收起的右栏再次触发一次同步提交。
+				if (service.isExpanded() === true) service.toggleExpanded()
+				return true
+			} catch { return false }
+		}
 		/** Cross-plugin panel-action face (ctx.layout). */
 		var LayoutController = class {
 			#panels;
@@ -1392,7 +1509,13 @@ window.__ModuleLoader__.load({
 						layout.attachPanels(actions);
 						// 面板路由由适配层的 LayoutController 提供，store 的动作集里没有它；
 						// 这里显式注入，供 AppFrame 处理官方面板入口的导航与页面导航时的面板复位。
-						return { selectPanel: (id) => layout.selectPanel(id), resetPanel: () => layout.resetPanel() };
+						return {
+							selectPanel: (id) => layout.selectPanel(id),
+							resetPanel: () => layout.resetPanel(),
+							// 左栏展开时收起底座右侧边栏：动作本身在模块级实现里读 layoutCtx 上的
+							// sidebarRight 服务，这里只把可调用入口交给 AppFrame（本作用域拿不到 ctx）。
+							collapseRightbarPane: () => { collapseSidebarRightImpl() },
+						};
 					}
 				}, AppFrame);
 				return () => {
@@ -1751,6 +1874,8 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
       // 面板行的订阅钩子在本作用域内实现（它要读这里的 slotsService 与快照存储），
       // 因此本作用域需要自己的 React 绑定；上层的 react 绑定属于各模块内部作用域。
       const panelRowsReact = require("react")
+      // 把本作用域唯一的 ctx 暴露给跨作用域的具名通道（见 collapseSidebarRightImpl）。
+      layoutCtx = ctx
       const connection = typeof ctx.get === 'function' ? ctx.get('connection') : ctx.connection
       const remote = typeof ctx.get === 'function' ? ctx.get('remote') : ctx.remote
       const nativeSessions = typeof ctx.get === 'function' ? ctx.get('sessions') : ctx.sessions
@@ -1845,6 +1970,8 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
         // 底座右侧边栏等宿主组件通过 root 标准席位读取面板信息；
         // 适配层在此提供该席位，第三层不直接接触 slots.provideRoot。
         provideRootHooks: hooks => call(slotsService, 'provideRoot', [Object.freeze({ hooks })]),
+        // 左侧栏展开时让底座右侧边栏收起（实现见模块级 collapseSidebarRightImpl）。
+        collapseSidebarRight: () => collapseSidebarRightImpl(),
         locale: Object.freeze({
           register: (...args) => call(localeService, 'register', args),
           bind: (...args) => call(localeService, 'bind', args),
