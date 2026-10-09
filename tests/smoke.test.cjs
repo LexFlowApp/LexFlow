@@ -715,6 +715,19 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   // 该条必须带 !important 才能压过底座规则。
   assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important;/)
   assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag; /)
+  // 拖拽条高度必须小于开关的 top（20px），否则二者纵向重叠、开关被判成拖拽区而点不动。
+  // 实测：高度 22px 时开关 y=20~21 命中拖拽条 drag、y=22 起才命中按钮 no-drag，
+  // 表现为"左侧栏开关按一下之后再也打不开"（用户 2026-10-09 反馈）。
+  {
+    const barRule = /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important; height: (\d+)px;/u.exec(adapter)
+    assert.ok(barRule, '未找到拖拽条规则')
+    const barHeight = Number(barRule[1])
+    const toggleTop = /\.lexflowTopSidebarToggle \{[^}]*top: (\d+)px;/u.exec(lexflowUi)
+    assert.ok(toggleTop, '未找到开关定位规则')
+    assert.ok(barHeight <= Number(toggleTop[1]), `拖拽条高度(${barHeight}) 必须不超过开关 top(${toggleTop[1]})，否则开关被拖拽区吞掉`)
+  }
+  // 不得改用 clip-path 挖洞：它能否影响原生层 app-region 判定未经实测，不采用未验证机制。
+  assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{[^}]*clip-path/u)
   // LexFlow 从未在 <html> 上设置 data-fullscreen（它设在 frame 元素上），
   // 故 html[data-fullscreen] 型选择器一律空转，不得依赖。
   assert.doesNotMatch(adapter, /html\[data-fullscreen\] #lexflow-window-drag-bar/)
@@ -937,6 +950,31 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   assert.match(adapter, /setProperty\('--lexflow-leading-clearance-compact', compact\)/u)
   // 带返回箭头的一级页面仍用 44px 取值，返回箭头槽位不被削减。
   assert.match(adapter, /const clearance = `\$\{Math\.round\(right \+ 44\)\}px`/u)
+  // 展开方向的重叠保护：收起态安全区（130px）若在点击瞬间被移除，而 header 仍停在
+  // x≈0（列位移刚起步），标题会掉到基础内边距 28px、压在交通灯与侧栏开关上，约 130ms
+  // 后才脱离（用户 2026-10-09 反馈"标题从交通灯右侧开始缩放、过程中与按钮重叠"）。
+  // 修法：给 padding-left 声明与列位移同源的过渡，使其由 130px 平滑过渡到 28px。
+  // 实测该过渡使标题起点全程保持在开关右边界（114px）之外——逐帧采样重叠帧数为 0。
+  assert.match(adapter, /header\[class\*="wSkVaW_header"\] \{ transition: padding-left var\(--ds-transition-duration-slow, \.3s\) var\(--ds-ease-in-out, cubic-bezier\(\.4, 0, \.2, 1\)\) !important; \}/u)
+  // 不得再写展开态的 padding-left 规则：多写一条会与收起态规则争优先级，
+  // 把收起态的安全区覆盖掉（试过并被否证）。
+  assert.doesNotMatch(adapter, /:not\(\[data-sidebar-collapsed\]\) header\[class\*="wSkVaW_header"\] \{ padding-left/u)
+  // 官方面板页（插件管理、设置等）收起态也必须有安全区。这些页由底座渲染、
+  // 类名每次构建重新哈希，LexFlow 此前只给自绘的三个一级页面加了安全区，
+  // 插件页因此贴着左缘：实测标题起点 x=110 而开关占 86~114，标题压在开关上
+  //（用户 2026-10-09 反馈"插件这两个字跟缩放按钮太近了"）。
+  // 用属性选择器适配哈希变化，并按页头结构限定作用范围。
+  assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_pageHead"\]\)/u)
+  assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_detailTop"\]\)/u)
+  // 面板页的 padding-left 同样需过渡，否则展开时与对话页标题出现同款瞬间重叠。
+  assert.match(adapter, /header\[class\*="wSkVaW_header"\], \[class\*="_page"\] \{ transition: padding-left var\(--ds-transition-duration-slow/u)
+  // 一级页面（工作流／档案室／工作台／预览）的返回箭头需 left 过渡：
+  // 展开时 collapsed 标记消失会让 left 从安全区（约 130px）瞬间跳回 20px，
+  // 而页面仍停在 x≈0，箭头短暂落到交通灯与开关上（用户 2026-10-09 反馈）。
+  {
+    const pages = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-pages', 'src', 'client.js'), 'utf8')
+    assert.match(pages, /\.lexflowWorkflowTopBack,\.lexflowWorkflowPreviewBack\{left:20px!important;transition:left \.3s cubic-bezier\(\.4,0,\.2,1\)\}/u)
+  }
 })
 
 test('插件页启用的官方组合包在重启后保留', () => {
