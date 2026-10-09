@@ -247,6 +247,18 @@ window.__ModuleLoader__.load({
       // 会被窗口拖拽吞掉，表现为"点卡片没反应"（2026-09-30 修复；合成 .click() 测不出）。
       'header[class*="wSkVaW_header"] div[class*="titleRow"] { -webkit-app-region: drag; min-height: 30px; }',
       'div[class*="titleRow"] button, div[class*="titleRow"] input, div[class*="titleRow"] [role="button"] { -webkit-app-region: no-drag; }',
+      // 对话头部不得作为拖拽区，否则左侧栏开关点不动。
+      // 底座给 header 打了 data-window-drag，darwin 下由
+      // `html[data-platform=darwin] [data-window-drag]{-webkit-app-region:drag}` 生效；
+      // 该属性自 LexFlow 补写 data-platform 后才首次生效，故问题与那次改动同时出现
+      //（用户 2026-10-09 反馈：重启后开关是手型、点一次后变箭头并会把窗口拖走，之后再也打不开左栏）。
+      // 机制：**no-drag 只能从自己的 drag 祖先里减除**，不能挖掉无关元素的 drag 矩形。
+      // 左侧栏开关是 fixed 定位的兄弟节点（不是 header 的后代），自身虽为 no-drag、
+      // z-index 也更高（30），但 header 的 drag 矩形覆盖它（x 0~1180, y 0~48 vs 开关 86~114, 20~48），
+      // 原生层判定时点击仍被当作拖拽吞掉。底座自己也踩过同类问题（见上方 2026-09-30 的 titleRow 记录）。
+      // 修法：header 整体改 no-drag，窗口拖动交给顶部拖拽条承担——它固定覆盖窗口最上方整条宽度，
+      // 且位于开关（top:20px）之上，两者互不干扰。经用户手测确认此状态可正常开合左栏。
+      'header[class*="wSkVaW_header"] { -webkit-app-region: no-drag !important; }',
       'header[class*="wSkVaW_header"]::after { display: none !important; }',
       // 0.1.7 把 header 从块/弹性布局改成 CSS Grid（grid-template-columns: auto minmax(0,1fr)、
       // min-height 76px），LexFlow 继续用 flex 是刻意选择：上面这条 display:flex + min-height:48px
@@ -309,8 +321,31 @@ window.__ModuleLoader__.load({
       // 部分）在此纯属空置，标题因此被推离侧栏开关约 28px（2026-10-04 用户反馈：半屏时
       // 标题距左侧缩放按钮过远）。对话页只保留箭头与开关之间的 16px 可见间隙。
       '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance-compact, 130px) !important; }',
+      // 展开方向的重叠保护：收起态的安全区（130px）在点击瞬间被移除，而 header 此时
+      // 仍停在 x≈0（列位移刚起步），标题于是掉到基础内边距 28px——正好压在交通灯与
+      // 侧栏开关（x 86~114）上，约 130ms 后才随列右移脱离。用户所见即"标题从交通灯
+      // 右侧开始缩放、过程中与按钮重叠"（2026-10-09 反馈）。
+      // 实测采样（收起→展开，逐帧）：
+      //   稳定态  leftW=0   pad=130  hLeft=0   title=130  ✓
+      //   点击瞬间 leftW=0   pad=28   hLeft=0   title=28   ✗ 压在开关上
+      //   +130ms  leftW=119 pad=28   hLeft=119 title=147  ✓
+      // 修法：让 padding-left 的移除与列位移同源过渡（同一时长与缓动变量），
+      // 标题起点在整段动画里都保持在开关右边界之外，不再出现压在按钮上的瞬间。
+      // 注意必须同时给展开态声明目标值，否则 !important 的基础内边距会立刻生效、过渡无从谈起。
+      // 只需给 padding-left 声明过渡：收起态由上面的规则给 130px，展开态由基础规则
+      // （header 自身的 padding: 18px 28px 0）给 28px，两者即过渡的起止值。
+      // 无需再写展开态规则——多写一条反而会引入优先级竞争，把收起态的安全区覆盖掉。
+      'header[class*="wSkVaW_header"] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
       // LexFlow 一级页面（工作流／档案室／工作台／预览）收起时同样需要让出交通灯与开关安全区。
       '[data-sidebar-collapsed] .lexflowWorkflowPage, [data-sidebar-collapsed] .lexflowWorkbenchPage, [data-sidebar-collapsed] .lexflowWorkflowPreview { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
+      // 官方面板页（插件管理、设置等）同样需要收起态安全区。
+      // 这些页面由底座渲染（类名 X_2TxG_page 等，每次构建重新哈希），LexFlow 此前只给自绘的
+      // 三个一级页面加了安全区，官方面板页因此贴着左缘：实测插件页标题起点 x=110，
+      // 而侧栏开关占 x 86~114 —— 标题压在开关上（用户 2026-10-09 反馈"插件这两个字跟缩放按钮太近了"）。
+      // 用属性选择器 [class*="_page"] 而非精确类名，以适配底座每次构建的哈希变化。
+      // 过渡与对话页标题同源，使展开时安全区与列位移同步收窄、不出现中途重叠。
+      '[data-sidebar-collapsed] [class*="_page"]:has(> [class*="_pageHead"]), [data-sidebar-collapsed] [class*="_page"]:has(> [class*="_detailTop"]) { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
+      'header[class*="wSkVaW_header"], [class*="_page"] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
       // 铺满形态的底色必须画在 dock 上，不能画在面板容器上。
       // 底座的面板容器本身是透明且 pointer-events:none 的，收起时靠把内部 dock
       // 整体滑出视口（transform: translateX(var(--dsh-sidebar-width)) + visibility:hidden）
@@ -588,13 +623,22 @@ window.__ModuleLoader__.load({
       '[data-chat-flow-kind="turn-process"][data-lexflow-flowing-order="true"] { order: 99 !important; }',
       // 鼠标点击过程条（含"用时"）不显示焦点框；键盘 Tab 到达时仍保留可见焦点。
       '[data-chat-running]:focus:not(:focus-visible) { outline: none !important; }',
-      // 顶部拖拽条：窗口化状态下整条 22px 是窗口拖拽区。
+      // 顶部拖拽条：窗口化状态下顶部整条为窗口拖拽区。
       // 必须带 !important——底座在 darwin 下有一条
       // `html[data-platform=darwin] body > :not(#root) { -webkit-app-region: no-drag }`，
       // 本条正是 body 的直接子元素且 id 不是 root，会被该规则压成 no-drag，
       // 表现为"鼠标放到顶部无法拖动窗口"（用户 2026-10-09 反馈）。
       // 该规则自 LexFlow 补写 data-platform="darwin" 后才首次生效，故问题与那次改动同时出现。
-      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: 22px; left: 0; position: fixed; right: 0; top: 0; z-index: 5; }',
+      // 拖拽条必须与左侧栏开关纵向错开，否则开关点不动。
+      // 机制：app-region 的判定发生在原生层，光标下只要压着 drag 区域就整体算拖拽区，
+      // 优先于 DOM 层叠与 z-index。原拖拽条高 22px、开关 top:20px——纵向重叠 2px，
+      // 这 2px 使整个按钮被判成拖拽区：光标由手型变箭头、点击被窗口拖拽吞掉，
+      // 表现为"左侧栏开关按一下之后就再也打不开"（用户 2026-10-09 反馈并实测复现：
+      // 开关 y=20~21 命中拖拽条 drag、y=22 起才命中按钮 no-drag）。
+      // 修法改为纵向让开：拖拽条高 20px，正好止于开关顶边（top:20px），重叠归零。
+      // 不用水平挖洞（clip-path）——那能否影响原生层判定未经实测，不采用未验证的机制。
+      // 交通灯由系统绘制、不依赖本拖拽条；20px 的拖拽高度仍覆盖整条窗口顶部。
+      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: 20px; left: 0; right: 0; top: 0; position: fixed; z-index: 5; }',
       'div[class*="logoRow"] button { -webkit-app-region: no-drag; }',
       // 0.1.5 把封面标题容纳类从 headlineText 改为 titleGroup（标题与“预览版”标签同层）。
       // 选择器同时保留旧类名，底座再次改动时不影响旧分支的可读性。

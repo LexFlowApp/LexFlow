@@ -1102,9 +1102,13 @@ return module.exports })()
 .lexflowWorkbenchToolbar[data-expanded=false]>*:not(.lexflowWorkbenchAlways){display:none}.lexflowWorkbenchToolbar[data-expanded=false]{justify-content:flex-end}
 .lexflowWorkbenchStatus{font-size:12px;color:var(--lexflow-dsw-alias-label-tertiary);overflow-wrap:anywhere}
 .lexflowWorkbenchToolbar{flex-wrap:wrap;gap:4px}.lexflowWorkbenchTarget{max-width:520px}.lexflowWorkbenchBlockSpace{min-height:24px}
-.lexflowWorkflowTopBack,.lexflowWorkflowPreviewBack{left:20px!important}/* 收起态：适配层按开关几何推导安全区（右边界 + 44px = 28px 内边距 + 16px 箭头间隙），
+.lexflowWorkflowTopBack,.lexflowWorkflowPreviewBack{left:20px!important;transition:left .3s cubic-bezier(.4,0,.2,1)}/* 收起态：适配层按开关几何推导安全区（右边界 + 44px = 28px 内边距 + 16px 箭头间隙），
    箭头占安全区最左 28px 槽位，右缘与内容起点对齐、与侧栏开关之间留出 16px；
-   展开态页面左边界本身已避开交通灯，箭头保持在页面内左缘，不做全局偏移。 */
+   展开态页面左边界本身已避开交通灯，箭头保持在页面内左缘，不做全局偏移。
+   必须带 left 的过渡：展开时 collapsed 标记消失会让 left 从安全区（约 130px）瞬间跳回
+   20px，而页面此时仍停在 x≈0（列位移刚起步），箭头于是短暂落到交通灯与侧栏开关上——
+   与对话页标题的重叠同源（用户 2026-10-09 反馈"工作流和档案室界面返回箭头也有缩放重叠"）。
+   过渡使箭头右移与页面位移同步，全程避开开关。 */
 [data-sidebar-collapsed] .lexflowWorkflowTopBack,[data-sidebar-collapsed] .lexflowWorkflowPreviewBack{left:calc(var(--lexflow-leading-clearance,158px) - 28px)!important}.lexflowWorkflowDialog{max-height:calc(100vh - 64px);overflow:auto;box-sizing:border-box}
 .lexflowSelect{position:relative;display:inline-flex;min-width:0}
 .lexflowSelectButton{align-items:center;background:transparent;border:0;border-radius:7px;color:inherit;cursor:pointer;display:inline-flex;font:inherit;font-size:12px;gap:5px;justify-content:space-between;min-height:26px;padding:2px 6px;white-space:nowrap}
@@ -1987,4 +1991,4 @@ return module.exports })()
   },
 })
 
-// lexflow-editor-source:9ca0a5eaa916c37acd9d43a6b28bbe7004751c3a99e42064daea949d99010d98
+// lexflow-editor-source:acf39824e7fcb8d3819a03f3d06ee92d60e65dab6b894b516bfd39d849135b28
