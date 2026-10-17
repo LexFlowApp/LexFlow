@@ -1,0 +1,23 @@
+{
+  "name": "@lexflow/community-appearance",
+  "version": "0.1.0-alpha.1",
+  "description": "Brandless LexFlow interface for DeepSeek Harness",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "@lexflow/dsh-adapter": "0.2.0",
+    "@lexflow/ui-shell": "0.2.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

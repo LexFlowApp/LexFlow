@@ -1706,8 +1706,8 @@ function registerOpenAICodexProxyRoutes(web, trustedOrigins, manager) {
 //#region src/compatibility.ts
 const COMPATIBILITY_SCHEMA_VERSION = 1;
 const SUPPORTED_NODE_RANGE = "^22.19.0 || >=24.0.0";
-const SUPPORTED_DSH_PLUGIN_API_VERSION = "0.1.7-alpha.1";
-const SUPPORTED_PI_AI_RANGE = "^0.85.1";
+const SUPPORTED_DSH_PLUGIN_API_VERSION = "0.2.1-rc.2";
+const SUPPORTED_PI_AI_RANGE = "^1.1.0";
 const PI_AI_PACKAGE = "@earendil-works/pi-ai";
 const DSH_PLUGIN_API_PACKAGES = [
 	"@deepseek-ai/dsh-agent",
@@ -1715,7 +1715,6 @@ const DSH_PLUGIN_API_PACKAGES = [
 	"@deepseek-ai/dsh-attachment",
 	"@deepseek-ai/dsh-home-paths",
 	"@deepseek-ai/dsh-host-webserver",
-	"@deepseek-ai/dsh-invariants",
 	"@deepseek-ai/dsh-llm",
 	"@deepseek-ai/dsh-llm-pi-ai",
 	"@deepseek-ai/dsh-fs",

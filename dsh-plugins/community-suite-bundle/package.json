@@ -1,0 +1,23 @@
+{
+  "name": "@lexflow/community-suite",
+  "version": "0.1.0-alpha.1",
+  "description": "One-step brandless LexFlow interface and workspace suite for DeepSeek Harness",
+  "license": "MIT",
+  "private": false,
+  "type": "module",
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "@lexflow/community-appearance": "0.1.0-alpha.1",
+    "@lexflow/community-workspace": "0.1.0-alpha.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

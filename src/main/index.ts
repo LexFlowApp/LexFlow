@@ -50,6 +50,17 @@ async function readLexFlowPluginManifest(): Promise<LexFlowPluginManifest> {
 }
 
 /**
+ * profile 模板自有、不得被回收为「用户设置行」的条目 id。
+ *
+ * `readUserSettingsEntries` 的判据是「有 id、且不含 insert 与 disabled」，因此模板里
+ * 任何不带 disabled 的顶层覆盖行都会被它顺带回收，在下一次启动时被追加成第二份。
+ * 这些行的真源是模板本身，用户无法在设置页编辑它们（例如 `web` 的
+ * `searchProvider`／`fetchProvider` 都不是 volatile 字段），故必须排除，
+ * 否则条目会随每次启动累积。
+ */
+const PROFILE_TEMPLATE_ENTRY_IDS = new Set(['web'])
+
+/**
  * 摘出 profile 补丁文件中由设置界面写入的条目。
  *
  * DeepSeek Harness 0.1.7 把插件的 volatile 配置持久化到本 profile 的补丁文件
@@ -77,9 +88,16 @@ async function readUserSettingsEntries(patchPath: string): Promise<string> {
   const kept = blocks
     .filter((block) => /(^|\n)\s*-?\s*id\s*:/u.test(block)
       && !/(^|\n)\s*disabled\s*:/u.test(block)
-      && !/(^|\n)\s*-?\s*insert\s*:/u.test(block))
+      && !/(^|\n)\s*-?\s*insert\s*:/u.test(block)
+      && !PROFILE_TEMPLATE_ENTRY_IDS.has(entryIdOf(block)))
     .map((block) => block.replace(/\n+$/u, ''))
   return kept.length === 0 ? '' : `${kept.join('\n')}\n`
+}
+
+/** 取一个补丁块声明的条目 id；未声明时返回空串。 */
+function entryIdOf(block: string): string {
+  const match = /(?:^|\n)\s*-?\s*id\s*:\s*(\S+)/u.exec(block)
+  return match === null ? '' : match[1]
 }
 
 /**
@@ -87,10 +105,18 @@ async function readUserSettingsEntries(patchPath: string): Promise<string> {
  * 不在此列的包由固定装配直接决定，用户的启停意图无法表达。
  */
 const OPTIONAL_BUNDLE_NAMES = [
+  '@deepseek-ai/dsh-experimental-session-search',
+  '@deepseek-ai/dsh-experimental-ralph-bundle',
+  '@deepseek-ai/dsh-experimental-terminal-bundle',
+  '@deepseek-ai/dsh-experimental-badge-skill-bundle',
+  '@deepseek-ai/dsh-experimental-session-titles-bundle',
   '@deepseek-ai/dsh-experimental-agent-team-profile',
   '@deepseek-ai/dsh-experimental-voice-input-bundle',
+  '@deepseek-ai/dsh-experimental-cot-translation-bundle',
   '@deepseek-ai/dsh-experimental-auto-review',
-  '@deepseek-ai/dsh-experimental-schedule-bundle',
+  '@deepseek-ai/dsh-experimental-inspector-profile',
+  '@deepseek-ai/dsh-experimental-plugin-market-bundle',
+  '@deepseek-ai/dsh-experimental-tool-worktree',
 ] as const
 
 /**
@@ -176,6 +202,14 @@ async function ensureLexFlowDshProfile(): Promise<void> {
     `      name: '@lexflow/presets'\n      config:\n        userAgentPath: ${JSON.stringify(paths.userAgentPath)}\n`,
   )
   await atomicWrite(path.join(profileRoot, 'cordis.patch.yml'), `${baseProfilePatchWithAgent}
+# 联网搜索路由：使用 DeepSeek 0.2.1 新增的专用 Search API。一次搜索直接请求
+# /v1/tools/search，不消耗完整模型轮次；凭据继续使用 DeepSeek 账号或 API Key。
+# 补丁层会整段替换该行的 config，故 fetchProvider 必须一并重述，否则抓取能力会丢。
+- id: web
+  config:
+    searchProvider: deepseek-search-api
+    fetchProvider: http
+
 - insert:
     # Kimi 套餐登录入口：驱动模型层自带的 kimi-coding 授权流程，登录后套餐模型自动进入选择器。
     - id: lexflow-kimi-connect

@@ -11,13 +11,13 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.6.3')
+  assert.equal(packageJson.version, '0.7.2')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
   assert.equal(packageJson.main, 'out/main/index.js')
-  assert.equal(packageJson.dependencies['@deepseek-ai/dsh'], '0.2.0-rc.2')
-  assert.equal(packageJson.dependencies['@earendil-works/pi-ai'], '0.85.1')
+  assert.equal(packageJson.dependencies['@deepseek-ai/dsh'], '0.2.1-rc.2')
+  assert.equal(packageJson.dependencies['@earendil-works/pi-ai'], '1.1.0')
   assert.equal(packageJson.dependencies['dsh-codex-connect'], undefined)
 })
 
@@ -194,6 +194,10 @@ test('LexFlow has one adapter, one Codex bridge, and the expected product plugin
   assert.match(adapter, /registerPrompt/)
   assert.match(adapter, /defineTool/)
   assert.doesNotMatch(archive, /@deepseek-ai\/dsh-tools/)
+  assert.match(main, /searchProvider: deepseek-search-api/u)
+  assert.match(main, /fetchProvider: http/u)
+  assert.doesNotMatch(main, /searchProvider: zai-web-search/u)
+  assert.doesNotMatch(main, /name: '@lexflow\/zai-search'/u)
 })
 
 test('the hand-written pi-ai provider profile carries every DSH contract field', () => {
@@ -264,6 +268,132 @@ test('native client patches supply a single LexFlow sidebar and routed center pa
   assert.equal(pagesTags, 3, 'ui-pages 的三个样式块都应带归属标记')
   assert.match(archive, /pages\.pages\.Workflow/)
   assert.match(workbench, /pages\.pages\.Workbench/)
+})
+
+test('LexFlow interface preferences expose warm paper, blue-white, compact and comfortable settings', () => {
+  const host = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-shell', 'src', 'index.js'), 'utf8')
+  const shell = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-shell', 'src', 'client.js'), 'utf8')
+  const adapter = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'client.js'), 'utf8')
+  const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
+
+  assert.match(host, /palette: z\.union\(\['lexflow', 'deepseek'\]\)\.default\('lexflow'\)\.volatile\(\)/u)
+  assert.match(host, /density: z\.union\(\['compact', 'comfortable'\]\)\.default\('compact'\)\.volatile\(\)/u)
+  assert.match(host, /sidebarRatio: z\.number\(\)\.min\(0\.12\)\.max\(0\.5\)\.default\(0\.2\)\.volatile\(\)/u)
+  assert.match(host, /branding: z\.union\(\['lexflow', 'official', 'none'\]\)\.default\('lexflow'\)\.volatile\(\)/u)
+  assert.match(host, /settings\.configure\(\{ auto: false \}/u)
+  // 配色和密度作为插件 volatile 配置写入 cordis.patch.yml。主进程每次启动会重写
+  // profile 模板，因此必须先回收用户设置行再写回；少了这一步，重启即回到默认值。
+  assert.match(
+    main,
+    /const settingsEntries = await readUserSettingsEntries\(profilePatchPath\)[\s\S]*?atomicWrite\(profilePatchPath/u,
+    '界面偏好所在的用户设置行必须在 profile 重写前读取并保留',
+  )
+
+  assert.match(shell, /LEXFLOW_PALETTE_TOKENS/u)
+  assert.match(shell, /DEEPSEEK_PALETTE_TOKENS/u)
+  assert.match(shell, /'palette\.lexflow': '暖纸'/u)
+  assert.match(shell, /'palette\.deepseek': '蓝白'/u)
+  assert.match(shell, /dataset\.lexflowPalette = preferences\.palette/u)
+  assert.match(shell, /dataset\.lexflowDensity = preferences\.density/u)
+  assert.match(shell, /dataset\.lexflowBranding = preferences\.branding/u)
+  assert.match(shell, /lexflow:branding-change/u)
+  assert.match(shell, /theme\.overrideTokens\('lexflow-appearance', PALETTE_THEMES\[preferences\.palette\]\)/u)
+  assert.match(adapter, /const brandless = branding === 'none'/u)
+  assert.match(shell, /'branding\.official': '显示'/u)
+  assert.match(shell, /'branding\.lexflow': '隐藏'/u)
+  assert.match(shell, /FishLogo, Menu, IconChevronDownOutline14/u)
+  assert.match(shell, /children: 'DeepSeek Harness'/u)
+  assert.match(shell, /useBranding\(\) === 'official' \? jsx\(FishLogo/u)
+  assert.match(adapter, /const officialBranding = branding === 'official'/u)
+  assert.match(adapter, /children: \[\(0, react_jsx_runtime\.jsx\)\("span", \{\n\s*className: SidebarRoot_module_css_default\.brandMark/u)
+  assert.match(shell, /\['none', t\('branding\.lexflow'\)\]/u)
+  assert.match(shell, /window\.addEventListener\('lexflow:branding-change', sync\)/u)
+  assert.match(shell, /html\[data-lexflow-branding="none"\][^\n]*_fishHitbox[^\n]*display: none/u)
+  assert.match(adapter, /dataset\.lexflowHost = 'dshDesktop' in window \? 'desktop' : 'web'/u)
+  assert.match(shell, /data-lexflow-host="desktop"[^\n]*\.lexflowSidebar_logoRow/u)
+  // 同一套外观运行在两种桌面宿主中：官方宿主圆心约 24.7px，独立应用约 33.75px。
+  // 适配层必须按 window.lexflowWindow 写入运行时标记，不能靠 host/branding 猜测。
+  assert.match(shell, /--lexflow-traffic-light-center-y: 24px/u)
+  assert.match(shell, /\[data-lexflow-runtime="lexflow"\] \{ --lexflow-traffic-light-center-y: 34px/u)
+  assert.match(shell, /\.lexflowTopSidebarToggle \{ top: calc\(var\(--lexflow-traffic-light-center-y\) - 14px\)/u)
+  assert.match(shell, /header\[data-window-drag\] \{ align-items: flex-start[^']*height: 48px[^']*padding-top: calc\(var\(--lexflow-traffic-light-center-y\) - 14px\)/u)
+  assert.match(shell, /data-lexflow-host="desktop"\] header\[data-window-drag\] \[class\*="_crumb"\][^']*padding-top: 0/u)
+  assert.match(adapter, /dataset\.lexflowRuntime = window\.lexflowWindow === undefined \? 'harness' : 'lexflow'/u)
+
+  // 0.2.1 的 Markdown 类名再次变化；密度规则必须以语义外层为锚点，不能再依赖旧哈希。
+  // 桌面版的哈希前缀是 gKv1-q_/icaHSq_，网页版是 hWmORq_/EvIC1a_；两组共用语义后缀选择器。
+  assert.match(adapter, /\[class\*="_body"\]:has\(> \[class\*="_markdown"\]\)/u)
+  assert.match(adapter, /\[class\*="_column"\]:has\(\[class\*="_flowItem"\]\)/u)
+  assert.match(adapter, /\[class\*="_scroll"\]:has\(\[class\*="_flowItem"\]\)/u)
+  assert.match(adapter, /\$\{MESSAGE_BODY_SELECTOR\} p \{ margin: 6px 0/u)
+  assert.match(adapter, /\$\{MESSAGE_BODY_SELECTOR\} table th/u)
+  assert.doesNotMatch(adapter, /\[class\*="markdown_(?:kcgor|kj4sz)"\] p/u)
+  assert.match(adapter, /data-lexflow-density="compact"/u)
+  assert.match(adapter, /var\(--lexflow-flowing-start\)/u)
+})
+
+test('sidebar width uses proportional bounds and widens the transcript without overriding manual width', () => {
+  const adapter = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'client.js'), 'utf8')
+
+  assert.match(adapter, /const SIDEBAR_MIN = 216/u)
+  assert.match(adapter, /const SIDEBAR_MAX = 420/u)
+  assert.match(adapter, /const SIDEBAR_DEFAULT_RATIO = 0\.2/u)
+  assert.match(adapter, /const SIDEBAR_MAX_RATIO = 0\.3/u)
+  assert.match(adapter, /function resolveSidebarWidth\(viewport, ratio, rightbar\)/u)
+  assert.match(adapter, /resolveSidebarWidth\(viewport, panels\.sidebarRatio, panels\.rightbar\)/u)
+  assert.match(adapter, /persistSidebarRatio/u)
+  // 旧的 264 拖拽下限是“能拉宽不能缩窄”的直接根因，必须消失。
+  assert.doesNotMatch(adapter, /clampWidth\(px, 264, 420\)/u)
+  // 自动正文宽度提高，但手动宽度变量仍排在 var() 第一顺位。
+  assert.match(adapter, /\$\{CHAT_BODY_SELECTOR\} \{ --dsh-chat-content-width: var\(--dsh-chat-user-width, clamp\(680px, calc\(var\(--dsh-conversation-column-width, 0px\) \* \.78\), 920px\)\)/u)
+})
+
+test('community bundles separate the appearance shell from the workspace extension', () => {
+  const pluginRoot = path.join(root, 'dsh-plugins')
+  const appearancePackage = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'community-appearance-bundle', 'package.json'), 'utf8'))
+  const workspacePackage = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'community-workspace-bundle', 'package.json'), 'utf8'))
+  const suitePackage = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'community-suite-bundle', 'package.json'), 'utf8'))
+  const appearance = fs.readFileSync(path.join(pluginRoot, 'community-appearance-bundle', 'cordis.patch.yml'), 'utf8')
+  const workspace = fs.readFileSync(path.join(pluginRoot, 'community-workspace-bundle', 'cordis.patch.yml'), 'utf8')
+  const suite = fs.readFileSync(path.join(pluginRoot, 'community-suite-bundle', 'cordis.patch.yml'), 'utf8')
+  const shell = fs.readFileSync(path.join(pluginRoot, 'lexflow-ui-shell', 'src', 'client.js'), 'utf8')
+  const archivePackage = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'lexflow-archive', 'package.json'), 'utf8'))
+
+  assert.match(appearance, /id: ui-layout[\s\S]*disabled: true/u)
+  assert.match(appearance, /name: '@lexflow\/dsh-adapter'/u)
+  assert.match(appearance, /name: '@lexflow\/ui-shell'/u)
+  assert.match(appearance, /branding: official/u)
+  assert.doesNotMatch(appearance, /name: '@lexflow\/archive'/u)
+
+  assert.match(workspace, /name: '@lexflow\/archive'/u)
+  assert.match(workspace, /name: '@lexflow\/workbench'/u)
+  assert.match(workspace, /name: '@lexflow\/workflow'/u)
+  assert.doesNotMatch(workspace, /id: ui-layout/u)
+  assert.doesNotMatch(workspace, /name: '@lexflow\/ui-shell'/u)
+
+  assert.match(suite, /name: '@lexflow\/dsh-adapter'/u)
+  assert.match(suite, /name: '@lexflow\/ui-shell'/u)
+  assert.match(suite, /name: '@lexflow\/archive'/u)
+  assert.deepEqual(appearancePackage.dsh.bundle, { patch: './cordis.patch.yml' })
+  assert.deepEqual(workspacePackage.dsh.bundle, { patch: './cordis.patch.yml' })
+  assert.deepEqual(suitePackage.dsh.bundle, { patch: './cordis.patch.yml' })
+
+  // 外观包独立安装时，侧栏只显示对话和官方面板；页面入口随工作区包注册表出现。
+  assert.match(shell, /pageRegistry\?\.has\?\.\(page\) === true/u)
+  assert.match(shell, /pageRegistry: runtime\.ui\.pages/u)
+
+  // 独立安装后，档案室必须自行声明文档转换依赖。
+  for (const dependency of ['mammoth', 'turndown', 'xlsx', 'docx', 'pptxgenjs', 'jszip', 'pdfjs-dist']) {
+    assert.ok(archivePackage.dependencies[dependency], `档案室缺少跨客户端依赖 ${dependency}`)
+  }
+  assert.equal(archivePackage.optionalDependencies['@lexflow/community-assets'], '0.1.0-alpha.1')
+  assert.equal(workspacePackage.dependencies['@lexflow/community-assets'], '0.1.0-alpha.1')
+
+  const archive = fs.readFileSync(path.join(pluginRoot, 'lexflow-archive', 'src', 'index.js'), 'utf8')
+  assert.match(archive, /resolve\('@lexflow\/community-assets\/package\.json'\)/u)
+  assert.match(archive, /path\.join\(communityAssetRoot, 'fonts'\)/u)
+  assert.match(archive, /当前安装版本未附带文字识别组件/u)
+  assert.ok(fs.existsSync(path.join(root, 'scripts', 'build-community-assets.cjs')))
 })
 
 test('LexFlow workflow storage uses typed Markdown files and recoverable old data', async () => {
@@ -472,7 +602,7 @@ test('GPT subscription integration is unwired but its source is retained', () =>
   assert.ok(fs.existsSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'package.json')))
   assert.ok(fs.existsSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'cordis.patch.yml')))
   const compat = JSON.parse(fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-codex-connect', 'compatibility.json'), 'utf8'))
-  assert.equal(compat.dshPluginApi.version, '0.2.0-rc.2')
+  assert.equal(compat.dshPluginApi.version, '0.2.1-rc.2')
 })
 
 test('LexFlow keeps Codex context-window controls in the bridge', () => {
@@ -519,9 +649,12 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   assert.doesNotMatch(adapter, /uV2eYG_tools"\] \{ padding-left/u)
   assert.match(adapter, /uV2eYG_dock"\] \{ height: 0/u)
   assert.match(adapter, /uV2eYG_dock"\] \[class\*="JObwrW_root"\] \{ left: 48px/u)
-  assert.match(adapter, /uV2eYG_dock"\] \[data-composer-stats\] \{ left: 82px/u)
+  // DeepSeek Harness 0.2.1 把统计区拆成两个 data-composer-stat 条目：槽位包装层必须
+  // 恢复为并排 flex 容器，否则两个条目落回普通流、浮到输入框上方。
+  assert.match(adapter, /uV2eYG_dock"\] > \[data-slot="conversation\.composer\.dock"\]:has\(> \[data-composer-stat\]\)[^']*\{ align-items: center[^']*left: 82px/u)
+  assert.match(adapter, /:has\(> \[data-composer-stat\]\)[^']*\[data-composer-stats\] \{ align-items: center/u)
   // 没有上下文计量器时（新对话），统计胶囊左移补位。
-  assert.match(adapter, /:not\(:has\(\[class~="JObwrW_root"\]\)\) \[data-composer-stats\] \{ left: 48px/u)
+  assert.match(adapter, /:not\(:has\(\[class~="JObwrW_root"\]\)\)[^\n]*\[data-composer-stat\]\)[^\n]*\[data-composer-stats\] \{ left: 48px/u)
   // 信息带四个控件加六成底色；backdrop-filter 在本应用不生效，遮蔽靠底色完成。
   assert.match(adapter, /\[class~="bOPqQW_pill"\] \{ -webkit-backdrop-filter: blur\(6px\) !important; backdrop-filter: blur\(6px\) !important; border-radius: 999px !important; background-color: color-mix\(in srgb, var\(--dsw-alias-bg-base\) 60%/u)
   // 底色选择器必须用精确词匹配，否则子串会命中按钮内部的分段元素，各段各长出一层底色。
@@ -531,18 +664,20 @@ test('LexFlow business plugins stop at LexFlow adapter contracts', () => {
   // 该属性保留仅为底座将来放开时能自动接手，真正起遮蔽作用的是底色，勿据此认为有模糊效果。
   assert.doesNotMatch(adapter, /data-lexflow-composer-frost/u)
   // 正文与信息带的重叠，靠把底座 composerSeat 的渐隐上移到信息带上方解决。
-  assert.match(adapter, /wSkVaW_composerSeat"\] \{ background: var\(--dsw-alias-bg-base\) !important/u)
-  assert.match(adapter, /wSkVaW_composerSeat"\]::before \{[^}]*top: -36px/u)
+  // 选择器只能锚定语义后缀：网页版前缀 wSkVaW_ 与桌面版前缀 ST7X_W_ 都随构建变化。
+  assert.match(adapter, /\[class\*="_composerSeat"\] \{ background: var\(--dsw-alias-bg-base\) !important/u)
+  assert.match(adapter, /\[class\*="_composerSeat"\]::before \{[^}]*top: -36px/u)
+  assert.doesNotMatch(adapter, /wSkVaW_composerSeat/u)
   assert.doesNotMatch(adapter, /uV2eYG_hero"\]\)::before/u)
   // 朗读用隐藏元素必须钉住：它们的静态位置会落到内容末尾之外，撑出幽灵滚动区。
-  assert.match(adapter, /EvIC1a_column"\] \[class\*="visuallyHidden"\] \{ top: 0 !important; left: 0 !important; \}/u)
+  assert.match(adapter, /\[class\*="visuallyHidden"\] \{ top: 0 !important; left: 0 !important; \}/u)
   // 发送键与停止键都定位到输入框内右侧，按类名而非文案；两者同屏时停止键左移让位。
   assert.match(adapter, /uV2eYG_primary"\] \{ bottom: 7px !important; height: 26px !important; margin: 0 !important; position: absolute/u)
   assert.match(adapter, /uV2eYG_trailing"\] button\[class\*="uV2eYG_primary"\]:not\(:last-child\) \{ right: 42px/u)
   assert.doesNotMatch(adapter, /aria-label="发送消息"\] \{/u)
   // "性能与用量"显示策略（定稿）：简洁档彻底隐藏（非按钮的胶囊组），详细档仅图标；
   // 不再另设"关闭"开关行（同 id 接管会让 chat 激活失败，实测 2026-09-27；独立开关行已废弃）。
-  assert.match(adapter, /data-composer-stats\]:not\(:has\(button\)\) \{ display: none/u)
+  assert.match(adapter, /:is\(\[data-composer-stat\], \[data-composer-stats\]\):not\(:has\(button\)\) \{ display: none/u)
   assert.match(adapter, /bOPqQW_label"\] \{ display: none/u)
   assert.doesNotMatch(shell, /lexflow\.showStats/u)
   assert.doesNotMatch(shell, /id: 'performance-usage'/u)
@@ -663,14 +798,14 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(adapter, /lexflowTaskDotPulse/)
   assert.match(adapter, /overscroll-behavior-y: contain/)
   assert.match(adapter, /installHostSurfaceCompatibility/)
-  assert.match(adapter, /wSkVaW_header.*flex-direction: row !important/)
-  assert.match(adapter, /wSkVaW_header.*padding: 18px 28px 0 !important/)
+  assert.match(adapter, /header\[data-window-drag\].*flex-direction: row !important/)
+  assert.match(adapter, /header\[data-window-drag\].*padding: 18px 28px 0 !important/)
   assert.match(adapter, /writing-mode: horizontal-tb !important/)
   assert.match(adapter, /dsh-content-font-size/)
   assert.match(adapter, /contributionRegistry/)
   // 紧凑密度层（0.1.5 现行锚点）：行高 22px、流间距 12px、输入框圆角 14px、
   // 气泡圆角 14px。失效的 0.1.4 类名不得再出现在适配层。
-  assert.match(adapter, /hWmORq_root.*line-height: calc\(22px/)
+  assert.match(adapter, /\$\{MESSAGE_BODY_SELECTOR\} \{ line-height: calc\(22px/)
   assert.match(adapter, /uV2eYG_scroll"\] \{ background: var\(--dsw-specific-input-major\) !important; border-radius: 14px/)
   assert.match(adapter, /div\[class\*="bubble"\] \{ border-radius: 14px/)
   assert.match(adapter, /markdown_kcgor/)
@@ -715,17 +850,10 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   // 该条必须带 !important 才能压过底座规则。
   assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important;/)
   assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag; /)
-  // 拖拽条高度必须小于开关的 top（20px），否则二者纵向重叠、开关被判成拖拽区而点不动。
+  // 拖拽条高度必须不超过开关的 top（20px），否则二者纵向重叠、开关被判成拖拽区而点不动。
   // 实测：高度 22px 时开关 y=20~21 命中拖拽条 drag、y=22 起才命中按钮 no-drag，
   // 表现为"左侧栏开关按一下之后再也打不开"（用户 2026-10-09 反馈）。
-  {
-    const barRule = /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important; height: (\d+)px;/u.exec(adapter)
-    assert.ok(barRule, '未找到拖拽条规则')
-    const barHeight = Number(barRule[1])
-    const toggleTop = /\.lexflowTopSidebarToggle \{[^}]*top: (\d+)px;/u.exec(lexflowUi)
-    assert.ok(toggleTop, '未找到开关定位规则')
-    assert.ok(barHeight <= Number(toggleTop[1]), `拖拽条高度(${barHeight}) 必须不超过开关 top(${toggleTop[1]})，否则开关被拖拽区吞掉`)
-  }
+  assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important; height: calc\(var\(--lexflow-traffic-light-center-y, 24px\) - 14px\);/u)
   // 不得改用 clip-path 挖洞：它能否影响原生层 app-region 判定未经实测，不采用未验证机制。
   assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{[^}]*clip-path/u)
   // LexFlow 从未在 <html> 上设置 data-fullscreen（它设在 frame 元素上），
@@ -810,21 +938,27 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(lexflowUi, /lexflowHeaderWorkspace/)
   assert.match(lexflowUi, /left: 86px/)
   assert.match(adapter, /fullScreen \? "18px" : "86px"/)
-  assert.match(adapter, /wSkVaW_root.*backdrop-filter: blur\(12px\)/)
+  assert.match(adapter, /\$\{CONVERSATION_ROOT_SELECTOR\}::before \{ -webkit-backdrop-filter: blur\(12px\)/)
   assert.match(adapter, /data-conversation-scroll.*linear-gradient/)
-  assert.match(adapter, /wSkVaW_tabs.*align-self: center !important/)
-  assert.match(adapter, /wSkVaW_tabs.*height: 28px !important/)
+  assert.match(adapter, /_tabs.*align-self: center !important/)
+  assert.match(adapter, /_tabs.*height: 28px !important/)
   assert.match(adapter, /Flowing\.\.\./)
   assert.match(workflow, /conversation\.session\.header\.actions/)
   assert.match(workflow, /id: "workspace-title"/)
   assert.match(workflow, /runtime\.workspaces\.list/)
-  assert.match(adapter, /wSkVaW_tabs.*display: flex !important/)
-  assert.match(adapter, /wSkVaW_tabs.*flex-direction: row !important/)
+  assert.match(adapter, /_tabs.*display: flex !important/)
+  assert.match(adapter, /_tabs.*flex-direction: row !important/)
   assert.match(sidebar, /lexflowSidebar_fading \.lexflowSidebar_footArea\{visibility:hidden\}/)
   assert.match(sidebar, /children: collapsed \? null : renderSlot\("sidebar\.settings", \{ wide \}\)/)
   assert.match(modelSettings, /cleanModelDisplayName/)
   assert.doesNotMatch(modelSettings, /card\("glm", "GLM"[^\n]+subscription/)
-  assert.match(adapter, /wSkVaW_header.*wSkVaW_crumbCurrent \{ font-weight: 700/)
+  assert.match(adapter, /header\[data-window-drag\].*_crumbCurrent.*font-weight: 700/)
+  // 桌面构建会更换输入区哈希前缀；别名从稳定 data 属性恢复，不能依赖 yhfFVG/uV2eYG 任一前缀。
+  assert.match(adapter, /data-composer-card="true"/u)
+  assert.match(adapter, /alias\(card, 'uV2eYG_card'\)/u)
+  assert.match(adapter, /alias\(permission, 'iWlSmW_trigger'\)/u)
+  assert.match(adapter, /alias\(context, 'JObwrW_trigger'\)/u)
+  assert.match(adapter, /alias\(element, 'bOPqQW_pill'\)/u)
   assert.doesNotMatch(sidebar, /SidebarRoot_module_css_default\.toggle/)
   assert.match(lexflowUi, /data-lexflow-layout="sidebar".*::after/)
   assert.match(lexflowUi, /data-lexflow-layout="sidebar".*z-index: 3 !important/)
@@ -955,10 +1089,10 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   // 后才脱离（用户 2026-10-09 反馈"标题从交通灯右侧开始缩放、过程中与按钮重叠"）。
   // 修法：给 padding-left 声明与列位移同源的过渡，使其由 130px 平滑过渡到 28px。
   // 实测该过渡使标题起点全程保持在开关右边界（114px）之外——逐帧采样重叠帧数为 0。
-  assert.match(adapter, /header\[class\*="wSkVaW_header"\] \{ transition: padding-left var\(--ds-transition-duration-slow, \.3s\) var\(--ds-ease-in-out, cubic-bezier\(\.4, 0, \.2, 1\)\) !important; \}/u)
+  assert.match(adapter, /header\[data-window-drag\] \{ transition: padding-left var\(--ds-transition-duration-slow, \.3s\) var\(--ds-ease-in-out, cubic-bezier\(\.4, 0, \.2, 1\)\) !important; \}/u)
   // 不得再写展开态的 padding-left 规则：多写一条会与收起态规则争优先级，
   // 把收起态的安全区覆盖掉（试过并被否证）。
-  assert.doesNotMatch(adapter, /:not\(\[data-sidebar-collapsed\]\) header\[class\*="wSkVaW_header"\] \{ padding-left/u)
+  assert.doesNotMatch(adapter, /:not\(\[data-sidebar-collapsed\]\) header\[data-window-drag\] \{ padding-left/u)
   // 官方面板页（插件管理、设置等）收起态也必须有安全区。这些页由底座渲染、
   // 类名每次构建重新哈希，LexFlow 此前只给自绘的三个一级页面加了安全区，
   // 插件页因此贴着左缘：实测标题起点 x=110 而开关占 86~114，标题压在开关上
@@ -967,7 +1101,7 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_pageHead"\]\)/u)
   assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_detailTop"\]\)/u)
   // 面板页的 padding-left 同样需过渡，否则展开时与对话页标题出现同款瞬间重叠。
-  assert.match(adapter, /header\[class\*="wSkVaW_header"\], \[class\*="_page"\] \{ transition: padding-left var\(--ds-transition-duration-slow/u)
+  assert.match(adapter, /header\[data-window-drag\], \[class\*="_page"\] \{ transition: padding-left var\(--ds-transition-duration-slow/u)
   // 一级页面（工作流／档案室／工作台／预览）的返回箭头需 left 过渡：
   // 展开时 collapsed 标记消失会让 left 从安全区（约 130px）瞬间跳回 20px，
   // 而页面仍停在 x≈0，箭头短暂落到交通灯与开关上（用户 2026-10-09 反馈）。
@@ -997,15 +1131,24 @@ test('插件页启用的官方组合包在重启后保留', () => {
     '必须先读出已启用的组合包，再写回 manifest',
   )
 
-  // 白名单与底座 OPTIONAL_BUNDLES 一致，四个官方组合包全部覆盖。
+  // 白名单与 0.2.1 底座 OPTIONAL_BUNDLES 一致，全部官方组合包都覆盖。
   for (const bundle of [
+    '@deepseek-ai/dsh-experimental-session-search',
+    '@deepseek-ai/dsh-experimental-ralph-bundle',
+    '@deepseek-ai/dsh-experimental-terminal-bundle',
+    '@deepseek-ai/dsh-experimental-badge-skill-bundle',
+    '@deepseek-ai/dsh-experimental-session-titles-bundle',
     '@deepseek-ai/dsh-experimental-agent-team-profile',
     '@deepseek-ai/dsh-experimental-voice-input-bundle',
+    '@deepseek-ai/dsh-experimental-cot-translation-bundle',
     '@deepseek-ai/dsh-experimental-auto-review',
-    '@deepseek-ai/dsh-experimental-schedule-bundle',
+    '@deepseek-ai/dsh-experimental-inspector-profile',
+    '@deepseek-ai/dsh-experimental-plugin-market-bundle',
+    '@deepseek-ai/dsh-experimental-tool-worktree',
   ]) {
     assert.ok(main.includes(bundle), `白名单缺少 ${bundle}`)
   }
+  assert.equal(main.includes('@deepseek-ai/dsh-experimental-schedule-bundle'), false)
   // 必需组合包由装配决定，不应出现在保留名单里（否则会在 bundles 中重复）。
   assert.equal(main.includes("'@deepseek-ai/dsh-base',\n  '@deepseek-ai/dsh-web-app',\n] as const"), false)
 })
