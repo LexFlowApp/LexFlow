@@ -9,6 +9,7 @@ window.__ModuleLoader__.load({
     var exports = module.exports
     const React = require('react')
     const { jsx, jsxs } = require('react/jsx-runtime')
+    const { FishLogo, Menu, IconChevronDownOutline14 } = require('@lexflow/dsh-adapter')
     const button = { background: 'var(--lexflow-dsw-alias-button-elevated-fill)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', cursor: 'pointer', padding: '7px 10px' }
     const toolButton = { ...button, borderRadius: '6px', fontSize: '12px', lineHeight: 1.3, padding: '4px 8px' }
     const input = { background: 'var(--lexflow-dsw-alias-bg-base)', border: '1px solid var(--lexflow-dsw-alias-border-l2)', borderRadius: '7px', color: 'var(--lexflow-dsw-alias-label-primary)', padding: '8px 10px' }
@@ -19,7 +20,7 @@ window.__ModuleLoader__.load({
      * 席位为空（官方管理器未加载）时用本项兜底，保证入口不消失。本区是面板入口的唯一渲染点。
      */
     const OFFICIAL_PANELS = [['plugins', '插件']]
-    const LEXFLOW_TOKENS = {
+    const LEXFLOW_PALETTE_TOKENS = {
       '--lexflow-dsw-alias-bg-base': { light: '#faf9f6', dark: '#262523' },
       '--lexflow-dsw-alias-bg-layer-1': { light: '#ffffff', dark: '#2b2a27' },
       '--lexflow-dsw-alias-bg-layer-2': { light: '#ffffff', dark: '#30302d' },
@@ -83,7 +84,78 @@ window.__ModuleLoader__.load({
       '--lexflow-dsw-alias-scrollbar-hover-l1': { light: '#c4bcae', dark: '#5c564d' },
       '--lexflow-dsw-alias-scrollbar-hover-l2': { light: '#b3aa9a', dark: '#6b6459' },
       '--lexflow-dsw-alias-toast-bg': { light: '#3a372f', dark: '#3f3b35' },
-      '--lexflow-dsw-alias-tooltip-bg': { light: '#3a372f', dark: '#3f3b35' }
+      '--lexflow-dsw-alias-tooltip-bg': { light: '#3a372f', dark: '#3f3b35' },
+      '--lexflow-flowing-start': { light: '#c96547', dark: '#d17a5f' },
+      '--lexflow-flowing-middle': { light: '#f0c0ae', dark: '#f2c9b7' },
+      '--lexflow-flowing-end': { light: '#da7756', dark: '#e39b80' }
+    }
+    const DEEPSEEK_PALETTE_TOKENS = {
+      '--lexflow-dsw-alias-bg-base': { light: '#ffffff', dark: '#151517' },
+      '--lexflow-dsw-alias-bg-layer-1': { light: '#ffffff', dark: '#1b1b1c' },
+      '--lexflow-dsw-alias-bg-layer-2': { light: '#ffffff', dark: '#232324' },
+      '--lexflow-dsw-alias-bg-layer-3': { light: '#ffffff', dark: '#232324' },
+      '--lexflow-dsw-alias-bg-module-platform': { light: '#f5f6f7', dark: '#232324' },
+      '--lexflow-dsw-alias-bg-multi-select': { light: '#f5f6f7', dark: '#2c2c2e' },
+      '--lexflow-dsw-alias-bg-overlay': { light: '#e9ecf2', dark: '#353638' },
+      '--lexflow-dsw-specific-sidebar-fill': { light: '#f9fafb', dark: '#1b1b1c' },
+      '--lexflow-dsw-specific-sidebar-nav-item-active': { light: '#e1e5ee', dark: '#2c2c2e' },
+      '--lexflow-dsw-specific-sidebar-nav-item-active-accent': { light: '#ebeef2', dark: '#353638' },
+      '--lexflow-dsw-specific-sidebar-nav-item-hover': { light: '#f1f3f5', dark: '#232324' },
+      '--lexflow-dsw-specific-bubble': { light: '#f5f6f7', dark: '#232324' },
+      '--lexflow-dsw-specific-bubble-highlight': { light: '#e4edfd', dark: '#2f4c8f' },
+      '--lexflow-dsw-specific-input-major': { light: '#ffffff', dark: '#232324' },
+      '--lexflow-dsw-specific-selector': { light: '#f5f6f7', dark: '#2c2c2e' },
+      '--lexflow-dsw-specific-tip': { light: '#f5f6f7', dark: '#232324' },
+      '--lexflow-dsw-alias-link': { light: '#4176e6', dark: '#7aaaff' },
+      '--lexflow-dsw-alias-markdown-tag': { light: '#f1f3f5', dark: '#2c2c2e' },
+      '--lexflow-dsw-static-neutral-50': { light: '#f9fafb', dark: '#f9fafb' },
+      '--lexflow-dsw-static-neutral-100': { light: '#ebeef2', dark: '#ebeef2' },
+      '--lexflow-dsw-static-neutral-800': { light: '#ebeef2', dark: '#232324' },
+      '--lexflow-dsw-static-neutral-850': { light: '#f9fafb', dark: '#1b1b1c' },
+      '--lexflow-dsw-static-deepseek-200': { light: '#d3e2ff', dark: '#34415b' },
+      '--lexflow-dsw-static-deepseek-450': { light: '#5686fe', dark: '#7aaaff' },
+      '--lexflow-dsw-static-deepseek-500': { light: '#4176e6', dark: '#7aaaff' },
+      '--lexflow-dsw-alias-label-primary': { light: '#1b1b1c', dark: '#ebeef2' },
+      '--lexflow-dsw-alias-label-secondary': { light: '#61666b', dark: '#adb2b8' },
+      '--lexflow-dsw-alias-label-tertiary': { light: '#81858c', dark: '#979da6' },
+      '--lexflow-dsw-alias-label-caption': { light: '#979da6', dark: '#7f8287' },
+      '--lexflow-dsw-alias-label-dimmed': { light: '#cfd3d6', dark: '#43454a' },
+      '--lexflow-dsw-alias-label-primary-bluish': { light: '#1b1b1c', dark: '#ebeef2' },
+      '--lexflow-dsw-alias-border-l1': { light: '#ebeef2', dark: '#2c2c2e' },
+      '--lexflow-dsw-alias-border-l2': { light: '#e1e5ee', dark: '#353638' },
+      '--lexflow-dsw-alias-border-l3': { light: '#cfd3d6', dark: '#43454a' },
+      '--lexflow-dsw-alias-border-l4': { light: '#adb2b8', dark: '#545557' },
+      '--lexflow-dsw-static-neutral-200': { light: '#e1e5ee', dark: '#353638' },
+      '--lexflow-dsw-static-neutral-700': { light: '#81858c', dark: '#979da6' },
+      '--lexflow-dsw-alias-interactive-bg-hover': { light: '#f1f3f5', dark: '#2c2c2e' },
+      '--lexflow-dsw-alias-interactive-bg-hover-solid': { light: '#ebeef2', dark: '#232324' },
+      '--lexflow-dsw-alias-button-elevated-fill': { light: '#ffffff', dark: '#232324' },
+      '--lexflow-dsw-alias-button-floating-fill': { light: '#ffffff', dark: '#232324' },
+      '--lexflow-dsw-alias-button-floating-hover': { light: '#f9fafb', dark: '#2c2c2e' },
+      '--lexflow-dsw-alias-button-info-fill': { light: '#4176e6', dark: '#2563eb' },
+      '--lexflow-dsw-alias-button-info-hover': { light: '#2563eb', dark: '#93c5fd' },
+      '--lexflow-dsw-alias-brand-primary-new-colorprimary-new-color': { light: '#4176e6', dark: '#2563eb' },
+      '--lexflow-dsw-alias-brand-primary': { light: '#4176e6', dark: '#2563eb' },
+      '--lexflow-dsw-alias-state-business-primary': { light: '#4176e6', dark: '#7aaaff' },
+      '--lexflow-dsw-alias-state-business-primary-hover': { light: '#2563eb', dark: '#93c5fd' },
+      '--lexflow-dsw-alias-state-business-tertiary': { light: '#e4edfd', dark: '#34415b' },
+      '--lexflow-dsw-alias-button-primary-fill': { light: '#4176e6', dark: '#2563eb' },
+      '--lexflow-dsw-alias-markdown-code-block': { light: '#f5f6f7', dark: '#1b1b1c' },
+      '--lexflow-dsw-alias-markdown-code-block-banner': { light: '#ebeef2', dark: '#232324' },
+      '--lexflow-dsw-alias-markdown-inline-code': { light: '#f1f3f5', dark: '#2c2c2e' },
+      '--lexflow-dsw-alias-scrollbar-bg-l1': { light: '#cfd3d6', dark: '#43454a' },
+      '--lexflow-dsw-alias-scrollbar-bg-l2': { light: '#adb2b8', dark: '#545557' },
+      '--lexflow-dsw-alias-scrollbar-hover-l1': { light: '#adb2b8', dark: '#545557' },
+      '--lexflow-dsw-alias-scrollbar-hover-l2': { light: '#979da6', dark: '#61666b' },
+      '--lexflow-dsw-alias-toast-bg': { light: '#353638', dark: '#353638' },
+      '--lexflow-dsw-alias-tooltip-bg': { light: '#353638', dark: '#353638' },
+      '--lexflow-flowing-start': { light: '#4176e6', dark: '#5686fe' },
+      '--lexflow-flowing-middle': { light: '#7aaaff', dark: '#93c5fd' },
+      '--lexflow-flowing-end': { light: '#5686fe', dark: '#7aaaff' }
+    }
+    const PALETTE_THEMES = {
+      lexflow: LEXFLOW_PALETTE_TOKENS,
+      deepseek: DEEPSEEK_PALETTE_TOKENS
     }
     const LEXFLOW_DENSITY_CSS = [
       '@font-face { font-display: swap; font-family: "LexFlow Source Han Serif SC"; font-style: normal; font-weight: 400; src: url("/lexflow-assets/fonts/SourceHanSerifSC-Regular.otf") format("opentype"); }',
@@ -93,8 +165,39 @@ window.__ModuleLoader__.load({
       'pre, code, kbd, samp, [class*="code-block"], [class*="codeBlock"], [class*="inline-code"], [class*="monospace"], [class*="terminal"], [class*="command"] { font-family: var(--lexflow-font-code) !important; }',
       '.lexflowSidebarRoot { position: relative; z-index: 2; font-weight: 600 !important; }',
       '.lexflowSidebarRoot time, .lexflowSidebarRoot [class*="time"] { font-weight: 400 !important; }',
+      'html[data-lexflow-branding="none"] .lexflowBrandMark, html[data-lexflow-branding="none"] .lexflowBrandName { display: none !important; }',
+      'html[data-lexflow-branding="none"] .lexflowSidebar_logoRow { display: none !important; }',
+      // 官方标识模式的默认文字是 DeepSeek Harness。关闭品牌时完全撤回品牌
+      // 插槽内容，避免继续显示官方名称；桌面仍保留外层交通灯安全区。
+      'html[data-lexflow-branding="none"] .lexflowSidebar_brandMark, html[data-lexflow-branding="none"] .lexflowSidebar_brandName, html[data-lexflow-branding="none"] .lexflowOfficialHeroMark { display: none !important; }',
+      'html[data-lexflow-branding="none"] [class*="_headline"] [class*="_fishHitbox"] { display: none !important; }',
+      'html[data-lexflow-branding="official"] .lexflowOfficialSidebarName { font-size: 18px !important; font-weight: 600 !important; letter-spacing: 0 !important; white-space: nowrap !important; }',
+      'html[data-lexflow-branding="official"] .lexflowOfficialHeroMark { flex: none !important; height: 34px !important; width: 34px !important; }',
+      'html[data-lexflow-branding="official"] [class*="_headline"] { gap: 10px !important; }',
+      // 官方标识模式下，非官方或独立客户端仍保留莱克斯流品牌；
+      // 只有明确选择“隐藏”时才收起标记与文字。
+      'html[data-lexflow-branding="official"] .lexflowBrandMark, html[data-lexflow-branding="official"] .lexflowBrandName { display: inline-flex !important; }',
+      // 桌面客户端即使删除品牌行，也必须保留交通灯安全区；网页版没有交通灯，不占这 52px。
+      'html[data-lexflow-branding="none"][data-lexflow-host="desktop"] .lexflowSidebar_logoRow { display: block !important; height: 0 !important; margin: 52px 0 0 !important; padding: 0 !important; visibility: hidden !important; }',
+      // 同一套外观会运行在两种桌面宿主中，交通灯原生位置不同：
+      //   · 官方 DeepSeek Harness 外观包：上缘 18、直径 12，圆心约 24.7px；
+      //   · 独立 LexFlow 应用：上缘 27、直径约 14，窗口级截图圆心约 33.75px。
+      // 两者都由“圆心减 14px”推导 28px 控件位置。data-lexflow-runtime 由适配层按
+      // window.lexflowWindow 是否存在写入，不得用 branding 或 host 字段猜测。
+      'html[data-lexflow-host="desktop"] { --lexflow-traffic-light-center-y: 24px; }',
+      'html[data-lexflow-host="desktop"][data-lexflow-runtime="lexflow"] { --lexflow-traffic-light-center-y: 34px; }',
+      'html[data-lexflow-host="desktop"] .lexflowTopSidebarToggle { top: calc(var(--lexflow-traffic-light-center-y) - 14px) !important; }',
+      'html[data-lexflow-host="desktop"] header[data-window-drag] { align-items: flex-start !important; box-sizing: border-box !important; height: 48px !important; padding-top: calc(var(--lexflow-traffic-light-center-y) - 14px) !important; }',
+      'html[data-lexflow-host="desktop"] header[data-window-drag] [class*="titleCluster"], html[data-lexflow-host="desktop"] header[data-window-drag] [class*="headerUtilities"], html[data-lexflow-host="desktop"] header[data-window-drag] [class*="headerCorner"] { align-self: flex-start !important; height: 28px !important; }',
+      'html[data-lexflow-host="desktop"] header[data-window-drag] [class*="_crumb"], html[data-lexflow-host="desktop"] header[data-window-drag] [class*="_crumbCurrent"] { padding-top: 0 !important; padding-bottom: 0 !important; }',
       '.lexflowSidebarRoot:not(.lexflowSidebarCollapsed) .lexflowSidebar_logoRow { -webkit-app-region: drag; height: 48px !important; justify-content: flex-start !important; margin-bottom: 4px !important; margin-top: 44px !important; padding-left: 12px !important; }',
       '.lexflowSidebarRoot:not(.lexflowSidebarCollapsed) .lexflowSidebar_brand, .lexflowSidebarRoot:not(.lexflowSidebarCollapsed) .lexflowSidebar_brandIdentity { justify-content: flex-start !important; text-align: left !important; }',
+      // 窄窗（侧栏约 220px）下官方名称会顶到侧栏边缘被硬切。允许品牌行收缩，
+      // 名称超出时以省略号收尾，避免出现半截字母。
+      '.lexflowSidebar_brandIdentity { min-width: 0 !important; }',
+      // 品牌名本身是 flex 容器，真正承载文字的是官方的 .lexflowOfficialSidebarName，
+      // 只在容器上写 text-overflow 不会生效（实测窄栏仍被硬切），必须落到文字元素。
+      '.lexflowSidebar_brandName, .lexflowOfficialSidebarName { flex: 0 1 auto !important; max-width: 100% !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }',
       '.lexflowSidebarRoot.lexflowSidebarCollapsed { padding-top: 6px !important; }',
       '.lexflowSidebarRoot.lexflowSidebarCollapsed .lexflowSidebar_logoRow { margin-top: 44px !important; position: relative; z-index: 1; }',
       '.lexflowSidebarRoot .lexflowSidebar_logoRow button { -webkit-app-region: no-drag; }',
@@ -234,6 +337,18 @@ window.__ModuleLoader__.load({
       ':root { --lexflow-content-font-size: var(--lexflow-dsh-content-font-size, 14px); --lexflow-content-font-delta: var(--lexflow-dsh-content-font-delta, 0px); }',
       '.lexflowPageMain { max-width: 860px; margin: 0 auto; width: 100%; font-size: var(--lexflow-content-font-size); line-height: calc(24px + var(--lexflow-content-font-delta)); }',
       '.lexflowPageMain p, .lexflowPageMain li { line-height: 1.7 }',
+      'html[data-lexflow-density="compact"] .lexflowPageMain p, html[data-lexflow-density="compact"] .lexflowPageMain li { line-height: 1.6 }',
+      '.lexflowPreferenceGroup { display: flex; flex-direction: column; }',
+      '.lexflowPreferenceRow { align-items: center; border-bottom: .5px solid var(--lexflow-dsw-alias-border-l2); display: grid; gap: 24px; grid-template-columns: minmax(0, 1fr) 170px; min-width: 0; padding: 14px 0; }',
+      '.lexflowPreferenceCopy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }',
+      '.lexflowPreferenceName { color: var(--lexflow-dsw-alias-label-primary); font-size: 13px; line-height: 20px; }',
+      '.lexflowPreferenceDescription { color: var(--lexflow-dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }',
+      '.lexflowPreferenceMenuAnchor { justify-self: end; width: auto; }',
+      '.lexflowPreferenceTrigger { align-items: center; background: var(--lexflow-dsw-alias-bg-module-platform); border: 0; border-radius: 10px; color: var(--lexflow-dsw-alias-label-primary); cursor: pointer; display: inline-flex; font: inherit; font-size: 14px; gap: 10px; height: 36px; justify-content: space-between; line-height: 22px; min-width: 96px; padding: 0 12px 0 14px; white-space: nowrap; }',
+      '.lexflowPreferenceTrigger:hover:not(:disabled) { background: var(--lexflow-dsw-alias-interactive-bg-hover); }',
+      '.lexflowPreferenceTrigger:disabled { cursor: default; opacity: .55; }',
+      '.lexflowPreferenceTrigger svg { flex: none; }',
+      '@media (max-width: 620px) { .lexflowPreferenceRow { align-items: start; gap: 7px; grid-template-columns: minmax(0, 1fr); } .lexflowPreferenceMenuAnchor { justify-self: start; } }',
       '@media (max-width: 860px) { .lexflowDashTop { grid-template-columns: 1fr } .lexflowDashBarRow { grid-template-columns: 120px 1fr 48px } }'
     ].join('\n')
     const LEXFLOW_INTERACTION_CSS = [
@@ -253,9 +368,9 @@ window.__ModuleLoader__.load({
       if (!response.ok || !data.ok) throw new Error(data.error || '操作失败。')
       return data.value
     }
-        function LexFlowMark({ size }) { return jsx('img', { alt: 'LexFlow', src: 'data:image/png;base64,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', style: { height: size + 'px', objectFit: 'contain', width: size + 'px' } }) }
+        function LexFlowMark({ size }) { return jsx('img', { alt: 'LexFlow', className: 'lexflowBrandMark', src: 'data:image/png;base64,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', style: { height: size + 'px', objectFit: 'contain', width: size + 'px' } }) }
     function EmptyAgentPreset() { return null }
-    function LexFlowName() { return jsx('span', { style: { letterSpacing: '.04em' }, children: 'LexFlow' }) }
+    function LexFlowName() { return jsx('span', { className: 'lexflowBrandName', style: { letterSpacing: '.04em' }, children: 'LexFlow' }) }
     const NAV_ICONS = {
       conversation: jsx('svg', { fill: 'none', viewBox: '0 0 16 16', xmlns: 'http://www.w3.org/2000/svg', children: jsx('path', { d: 'M8 3.2v9.6M3.2 8h9.6', stroke: 'currentColor', strokeLinecap: 'round', strokeWidth: '1.5' }) }),
       workflow: jsxs('svg', { fill: 'none', viewBox: '0 0 18 18', xmlns: 'http://www.w3.org/2000/svg', children: [jsx('rect', { x: 2.5, y: 2.5, width: 5, height: 5, rx: 1.2, stroke: 'currentColor', strokeWidth: '1.25' }), jsx('rect', { x: 10.5, y: 10.5, width: 5, height: 5, rx: 1.2, stroke: 'currentColor', strokeWidth: '1.25' }), jsx('path', { d: 'M7.5 5H11a2 2 0 0 1 2 2v3.5M5 7.5V13h5.5', stroke: 'currentColor', strokeLinecap: 'round', strokeWidth: '1.25' })] }),
@@ -335,7 +450,7 @@ window.__ModuleLoader__.load({
       return text ?? options?.id ?? ''
     }
 
-    function LexFlowNavigation({ wide, startSession, useSidebarPanels, selectPanel, panelInfo, renderPanelIcon }) {
+    function LexFlowNavigation({ wide, startSession, useSidebarPanels, selectPanel, panelInfo, renderPanelIcon, pageRegistry }) {
       const [active, setActive] = React.useState('conversation')
       React.useEffect(() => {
         const listener = (event) => setActive(event.detail?.page || 'conversation')
@@ -356,10 +471,19 @@ window.__ModuleLoader__.load({
       const panelRows = typeof useSidebarPanels === 'function' ? useSidebarPanels((value) => value) : []
       const panelEntries = Array.isArray(panelRows) ? panelRows : []
       const list = Array.isArray(panelEntries) ? panelEntries : []
+      // 外观包可以单独安装；只有工作区包注册了页面时，才显示对应入口。
+      // 订阅页面注册表，使用户在运行中启停工作区包时无需重启侧栏。
+      const subscribePages = React.useCallback(
+        listener => typeof pageRegistry?.subscribe === 'function' ? pageRegistry.subscribe(listener) : () => {},
+        [pageRegistry],
+      )
+      const pageRevision = React.useCallback(() => pageRegistry?.getRevision?.() ?? 0, [pageRegistry])
+      React.useSyncExternalStore(subscribePages, pageRevision, pageRevision)
+      const visiblePages = pages.filter(([page]) => page === 'conversation' || pageRegistry?.has?.(page) === true)
       // 钩子必须在任何提前 return 之前全部调用；宽栏判断放到这里。
       if (!wide) return null
       return jsx('nav', { 'aria-label': 'LexFlow 一级导航', style: { display: 'grid', gap: '2px', margin: '2px 2px 9px' }, children: [
-        ...pages.map(([page, pageLabel]) => {
+        ...visiblePages.map(([page, pageLabel]) => {
           const isActive = active === page && activePanel === null
           return jsxs('button', {
             type: 'button',
@@ -439,27 +563,190 @@ window.__ModuleLoader__.load({
     // 简洁档 = 输入区不显示统计；详细档 = 仅显示图标（点开看详情）。
     // 由适配层按底座设置 performanceUsage 的值直接处理，此处无需任何界面。
 
+      const APPEARANCE_SETTINGS_NAMESPACE = 'lexflow-ui-shell'
+      const APPEARANCE_LOCALE_NAMESPACE = 'lexflowAppearance'
+      const DEFAULT_UI_PREFERENCES = Object.freeze({ palette: 'lexflow', density: 'compact', branding: 'lexflow' })
+      const UI_PREFERENCE_LOCALES = {
+        zh: {
+          title: '界面偏好',
+          palette: '配色方案',
+          paletteDescription: '选择暖纸或蓝白界面',
+          density: '排版密度',
+          densityDescription: '调整正文、段落与表格的留白',
+          'palette.lexflow': '暖纸',
+          'palette.deepseek': '蓝白',
+          'density.compact': '紧凑',
+          'density.comfortable': '舒适',
+          officialBranding: '官方标识',
+          officialBrandingDescription: '显示 DeepSeek 鲸鱼图标与产品名称',
+          'branding.lexflow': '隐藏',
+          'branding.official': '显示',
+        },
+        en: {
+          title: 'Interface',
+          palette: 'Color scheme',
+          paletteDescription: 'Choose warm paper or blue and white',
+          density: 'Density',
+          densityDescription: 'Adjust spacing for text, paragraphs and tables',
+          'palette.lexflow': 'Warm paper',
+          'palette.deepseek': 'Blue & white',
+          'density.compact': 'Compact',
+          'density.comfortable': 'Comfortable',
+          officialBranding: 'Official identity',
+          officialBrandingDescription: 'Show the DeepSeek whale mark and product name',
+          'branding.lexflow': 'Hidden',
+          'branding.official': 'Shown',
+        }
+      }
+
+      /**
+       * 将持久设置收敛到受支持值，避免旧配置或损坏值让界面落成半套配色。
+       * @param value - settings scope 解出的插件配置。
+       * @returns 可安全应用的配色与密度。
+       */
+      function normalizeUiPreferences(value) {
+        return {
+          palette: value?.palette === 'deepseek' ? 'deepseek' : DEFAULT_UI_PREFERENCES.palette,
+          density: value?.density === 'comfortable' ? 'comfortable' : DEFAULT_UI_PREFERENCES.density,
+          branding: value?.branding === 'none'
+            ? 'none'
+            : value?.branding === 'official' ? 'official' : DEFAULT_UI_PREFERENCES.branding,
+        }
+      }
+
+      /** LexFlow 自有的“界面偏好”设置行。 */
+      function LexFlowPreferences({ t, settings }) {
+        const snapshot = React.useSyncExternalStore(settings.subscribe, settings.getSnapshot, settings.getSnapshot)
+        const preferences = normalizeUiPreferences(snapshot.value)
+        const disabled = snapshot.writable === false
+        const [openMenu, setOpenMenu] = React.useState(null)
+        const select = (field, value) => {
+          if (!disabled && preferences[field] !== value) void settings.set(field, value)
+        }
+        const preferenceRow = (field, title, description, options) => jsxs('div', {
+          className: 'lexflowPreferenceRow',
+          children: [
+            jsxs('div', {
+              className: 'lexflowPreferenceCopy',
+              children: [
+                jsx('div', { className: 'lexflowPreferenceName', children: title }),
+                jsx('div', { className: 'lexflowPreferenceDescription', children: description })
+              ]
+            }),
+            jsx(Menu, {
+              open: openMenu === field,
+              items: options.map(([id, label]) => ({ id, label })),
+              selectedId: preferences[field],
+              onSelect: id => {
+                setOpenMenu(null)
+                select(field, id)
+              },
+              onClose: () => setOpenMenu(null),
+              align: 'end',
+              portal: true,
+              className: 'lexflowPreferenceMenuAnchor',
+              anchor: jsxs('button', {
+                type: 'button',
+                className: 'lexflowPreferenceTrigger',
+                'aria-label': title,
+                'aria-haspopup': 'menu',
+                'aria-expanded': openMenu === field,
+                disabled,
+                onClick: () => setOpenMenu(current => current === field ? null : field),
+                children: [
+                  jsx('span', { children: options.find(([id]) => id === preferences[field])?.[1] ?? options[0][1] }),
+                  jsx(IconChevronDownOutline14, {})
+                ]
+              })
+            })
+          ]
+        }, field)
+        return jsxs('div', {
+          className: 'lexflowPreferenceGroup',
+          'data-lexflow-preferences': 'true',
+          children: [
+            preferenceRow('palette', t('palette'), t('paletteDescription'), [
+              ['lexflow', t('palette.lexflow')],
+              ['deepseek', t('palette.deepseek')]
+            ]),
+            preferenceRow('density', t('density'), t('densityDescription'), [
+              ['compact', t('density.compact')],
+              ['comfortable', t('density.comfortable')]
+            ]),
+            preferenceRow('branding', t('officialBranding'), t('officialBrandingDescription'), [
+              ['none', t('branding.lexflow')],
+              ['official', t('branding.official')]
+            ])
+          ]
+        })
+      }
+
       const inject = ['lexflow']
       function apply(runtime) {
         const slots = runtime.ui.slots
         const theme = runtime.ui.theme
+        const settings = runtime.ui.settings.bind({ namespace: APPEARANCE_SETTINGS_NAMESPACE })
         const disposeHostSurface = runtime.ui.compatibility.installHostSurface()
         runtime.lifecycle.effect(() => {
-          const disposeOverride = theme.overrideTokens('lexflow-appearance', LEXFLOW_TOKENS)
+          let disposeOverride = () => {}
+          const syncPreferences = () => {
+            const preferences = normalizeUiPreferences(settings.getSnapshot().value)
+            document.documentElement.dataset.lexflowPalette = preferences.palette
+            document.documentElement.dataset.lexflowDensity = preferences.density
+            document.documentElement.dataset.lexflowBranding = preferences.branding
+            window.dispatchEvent(new CustomEvent('lexflow:branding-change', { detail: { branding: preferences.branding } }))
+            disposeOverride()
+            disposeOverride = theme.overrideTokens('lexflow-appearance', PALETTE_THEMES[preferences.palette])
+          }
+          const unsubscribeSettings = settings.subscribe(syncPreferences)
+          const disposeLocale = runtime.ui.locale.register(APPEARANCE_LOCALE_NAMESPACE, UI_PREFERENCE_LOCALES)
+          syncPreferences()
           const style = document.createElement('style')
           style.dataset.lexflowAppearance = 'true'
           // 样式归属标记：防止被底座模块系统认领给无关插件、随其重载误删（2026-09-30 界面坍缩修复）。
           style.dataset.plugin = '@lexflow/ui-shell'
           style.textContent = LEXFLOW_MOTION_CSS + '\n' + LEXFLOW_DENSITY_CSS + '\n' + LEXFLOW_TYPOGRAPHY_CSS + '\n' + LEXFLOW_INTERACTION_CSS
           document.head.appendChild(style)
-          return () => { disposeOverride(); style.remove(); disposeHostSurface() }
+          return () => {
+            unsubscribeSettings()
+            if (typeof disposeLocale === 'function') disposeLocale()
+            disposeOverride()
+            delete document.documentElement.dataset.lexflowPalette
+            delete document.documentElement.dataset.lexflowDensity
+            delete document.documentElement.dataset.lexflowBranding
+            style.remove()
+            disposeHostSurface()
+          }
         }, 'lexflow-ui-shell: palette and interaction')
+        slots.inject('settings.general.item', () => slots.register({
+          name: 'settings.general.item',
+          id: 'lexflow-preferences',
+          order: 11,
+          locale: APPEARANCE_LOCALE_NAMESPACE,
+          inject: () => ({ settings }),
+        }, LexFlowPreferences))
         slots.inject('sidebar.brand.mark', () => slots.inject('sidebar.brand.name', () => slots.inject('conversation.hero.brand.mark', () => slots.inject('conversation.hero.agentPreset', () => slots.inject('sidebar.lexflow.nav', function* () {
-          yield slots.register({ name: 'sidebar.brand.mark' }, LexFlowMark)
-          yield slots.register({ name: 'sidebar.brand.name' }, LexFlowName)
-          yield slots.register({ name: 'conversation.hero.brand.mark' }, LexFlowMark)
+          const useBranding = () => {
+            const [branding, setBranding] = React.useState(document.documentElement.dataset.lexflowBranding)
+            React.useEffect(() => {
+              const sync = (event) => setBranding(event.detail?.branding ?? document.documentElement.dataset.lexflowBranding)
+              window.addEventListener('lexflow:branding-change', sync)
+              return () => window.removeEventListener('lexflow:branding-change', sync)
+            }, [])
+            return branding
+          }
+          const SidebarMark = props => useBranding() === 'official' ? jsx(FishLogo, props) : jsx(LexFlowMark, props)
+          const SidebarName = props => useBranding() === 'official'
+            ? jsx('span', { className: 'lexflowOfficialSidebarName', children: 'DeepSeek Harness' })
+            : jsx(LexFlowName, props)
+          const HeroMark = props => useBranding() === 'official'
+            ? jsx(FishLogo, { ...props, className: 'lexflowOfficialHeroMark' })
+            : jsx(LexFlowMark, props)
+          yield slots.register({ name: 'sidebar.brand.mark' }, SidebarMark)
+          yield slots.register({ name: 'sidebar.brand.name' }, SidebarName)
+          yield slots.register({ name: 'conversation.hero.brand.mark' }, HeroMark)
           yield slots.register({ name: 'conversation.hero.agentPreset', priority: -1 }, EmptyAgentPreset)
-          yield slots.register({ name: 'sidebar.lexflow.nav' }, LexFlowNavigation)
+            yield slots.register({ name: 'sidebar.lexflow.nav' }, props => jsx(LexFlowNavigation, { ...props, pageRegistry: runtime.ui.pages }))
         })))))
       }
       return { apply, inject }

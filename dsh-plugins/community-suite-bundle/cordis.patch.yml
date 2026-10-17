@@ -1,0 +1,38 @@
+# One-step community installation. Keep this layer and the two component packs
+# in sync when their patch entries change.
+- id: ui-brand-official
+  disabled: true
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-model-selection
+  disabled: true
+- insert:
+    - id: lexflow-adapter
+      name: '@lexflow/dsh-adapter'
+    - id: lexflow-ui-shell
+      name: '@lexflow/ui-shell'
+      config:
+        palette: deepseek
+        density: compact
+        branding: official
+    - id: lexflow-ui-pages
+      name: '@lexflow/ui-pages'
+    - id: lexflow-archive
+      name: '@lexflow/archive'
+      config:
+        workspaceRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_DATA_ROOT ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), 'Documents', 'DeepSeek Workspace'), 'workspace')"
+        archiveRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_DATA_ROOT ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), 'Documents', 'DeepSeek Workspace'), 'archive')"
+        draftsRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'drafts')"
+        historyRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'history')"
+        oldDataRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'old-data')"
+        defaultKnowledgeBaseRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_DATA_ROOT ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), 'Documents', 'DeepSeek Workspace'), 'knowledge')"
+        knowledgeBaseStatePath: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'knowledge-base.json')"
+        knowledgeBaseIndexRoot: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'knowledge-index')"
+        workflowSettingsPath: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'workflow-settings.json')"
+        userAgentPath: !!js "process.getBuiltinModule('node:path').join(process.env.LEXFLOW_COMMUNITY_STATE_ROOT ?? process.getBuiltinModule('node:path').join(process.env.DSH_HOME ?? process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:os').homedir(), '.dsh'), 'community-workspace'), 'AGENT.md')"
+    - id: lexflow-workbench
+      name: '@lexflow/workbench'
+    - id: lexflow-workflow
+      name: '@lexflow/workflow'

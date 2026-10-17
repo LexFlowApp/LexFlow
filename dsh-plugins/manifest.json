@@ -6,7 +6,7 @@
       "target": "@lexflow/dsh-adapter",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js",
@@ -18,7 +18,7 @@
       "target": "@lexflow/kimi-connect",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js"
@@ -29,7 +29,7 @@
       "target": "@lexflow/ui-shell",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js"
@@ -40,7 +40,7 @@
       "target": "@lexflow/ui-pages",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js"
@@ -51,7 +51,7 @@
       "target": "@lexflow/archive",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js",
@@ -63,7 +63,7 @@
       "target": "@lexflow/presets",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js"
       ]
@@ -73,7 +73,7 @@
       "target": "@lexflow/workbench",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js"
@@ -84,7 +84,7 @@
       "target": "@lexflow/workflow",
       "kind": "lexflow-owned",
       "sourceDir": "src",
-      "compatibleWith": "@deepseek-ai/dsh@0.2.0-rc.2",
+      "compatibleWith": "@deepseek-ai/dsh@0.2.1-rc.2",
       "entrypoints": [
         "lib/index.js",
         "lib/client.js",

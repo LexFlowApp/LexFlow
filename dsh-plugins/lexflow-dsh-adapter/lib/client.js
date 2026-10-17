@@ -233,19 +233,35 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.6.3"
-    const LEXFLOW_DSH_VERSION = "0.2.0-rc.2"
+    const LEXFLOW_PRODUCT_VERSION = "0.7.2"
+    const LEXFLOW_DSH_VERSION = "0.2.1-rc.2"
+    // 底座网页版与桌面版的消息区哈希前缀不同（wSkVaW_/hWmORq_/EvIC1a_ 与
+    // ST7X_W_/gKv1-q_/icaHSq_），但语义后缀一致。以下选择器一律以语义后缀为锚，
+    // 同时保留已知哈希作为兜底：2026-10-17 实测桌面版按旧哈希编写的紧凑排版、
+    // 顶部渐隐与幽灵滚动修复全部空转，插件里的正文退回 24px 行高、16px 段距。
+    const MESSAGE_BODY_SELECTOR =
+      ':is([class*="hWmORq_body"], [class*="_body"]:has(> [class*="_markdown"]))'
+    const MESSAGE_COLUMN_SELECTOR =
+      ':is([class*="EvIC1a_column"], [class*="_column"]:has([class*="_flowItem"]))'
+    const MESSAGE_SCROLL_SELECTOR =
+      ':is([class*="EvIC1a_scroll"], [class*="_scroll"]:has([class*="_flowItem"]))'
+    const MESSAGE_ROOT_SELECTOR =
+      ':is([class*="EvIC1a_root"], [class*="_scroll"] [class*="_root"]:has([class*="_flowItem"]))'
+    const CHAT_BODY_SELECTOR =
+      ':is([class*="wSkVaW_body"], [class*="ST7X_W_body"], [class*="_body"]:has(> [class*="_composerSeat"]))'
+    const CONVERSATION_ROOT_SELECTOR =
+      ':is([data-lexflow-layout="center"] > [class*="wSkVaW_root"], [data-lexflow-layout="center"] [class*="_root"]:has([class*="scrollBody"]))'
     const HOST_SURFACE_CSS = [
       // 0.1.5 把对话头部的分隔从 ::after 改成 header 自身的 border-bottom；
       // 保留 LexFlow 自带的下缘模糊，去掉底座新增的这条横线。
-      '[class*="wSkVaW_header"] { border-bottom: none !important; }',
+      'header[data-window-drag] { border-bottom: none !important; }',
       "body { --lexflow-ds-font-family-code: var(--ds-font-family-code); --lexflow-dsh-content-font-delta: var(--dsh-content-font-delta); --lexflow-dsh-content-font-size: var(--dsh-content-font-size); --lexflow-dsh-scrollbar-thumb: var(--dsh-scrollbar-thumb); --lexflow-dsh-scrollbar-thumb-hover: var(--dsh-scrollbar-thumb-hover); --lexflow-dsw-alias-bg-base: var(--dsw-alias-bg-base); --lexflow-dsw-alias-bg-layer-1: var(--dsw-alias-bg-layer-1); --lexflow-dsw-alias-bg-layer-2: var(--dsw-alias-bg-layer-2); --lexflow-dsw-alias-bg-layer-3: var(--dsw-alias-bg-layer-3); --lexflow-dsw-alias-bg-module-platform: var(--dsw-alias-bg-module-platform); --lexflow-dsw-alias-bg-multi-select: var(--dsw-alias-bg-multi-select); --lexflow-dsw-alias-bg-overlay: var(--dsw-alias-bg-overlay); --lexflow-dsw-alias-border-inverted: var(--dsw-alias-border-inverted); --lexflow-dsw-alias-border-l1: var(--dsw-alias-border-l1); --lexflow-dsw-alias-border-l2: var(--dsw-alias-border-l2); --lexflow-dsw-alias-border-l3: var(--dsw-alias-border-l3); --lexflow-dsw-alias-brand-primary: var(--dsw-alias-brand-primary); --lexflow-dsw-alias-brand-primary-new-colorprimary-new-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color); --lexflow-dsw-alias-button-elevated-fill: var(--dsw-alias-button-elevated-fill); --lexflow-dsw-alias-button-floating-fill: var(--dsw-alias-button-floating-fill); --lexflow-dsw-alias-button-floating-hover: var(--dsw-alias-button-floating-hover); --lexflow-dsw-alias-button-info-fill: var(--dsw-alias-button-info-fill); --lexflow-dsw-alias-button-info-hover: var(--dsw-alias-button-info-hover); --lexflow-dsw-alias-button-primary-fill: var(--dsw-alias-button-primary-fill); --lexflow-dsw-alias-button-primary-hover: var(--dsw-alias-button-primary-hover); --lexflow-dsw-alias-interactive-bg-hover: var(--dsw-alias-interactive-bg-hover); --lexflow-dsw-alias-interactive-bg-hover-danger: var(--dsw-alias-interactive-bg-hover-danger); --lexflow-dsw-alias-interactive-bg-hover-solid: var(--dsw-alias-interactive-bg-hover-solid); --lexflow-dsw-alias-label-caption: var(--dsw-alias-label-caption); --lexflow-dsw-alias-label-dimmed: var(--dsw-alias-label-dimmed); --lexflow-dsw-alias-label-primary: var(--dsw-alias-label-primary); --lexflow-dsw-alias-label-primary-bluish: var(--dsw-alias-label-primary-bluish); --lexflow-dsw-alias-label-primary-foreground: var(--dsw-alias-label-primary-foreground); --lexflow-dsw-alias-label-secondary: var(--dsw-alias-label-secondary); --lexflow-dsw-alias-label-tertiary: var(--dsw-alias-label-tertiary); --lexflow-dsw-alias-markdown-code-block: var(--dsw-alias-markdown-code-block); --lexflow-dsw-alias-markdown-code-block-banner: var(--dsw-alias-markdown-code-block-banner); --lexflow-dsw-alias-markdown-inline-code: var(--dsw-alias-markdown-inline-code); --lexflow-dsw-alias-scrollbar-bg-l1: var(--dsw-alias-scrollbar-bg-l1); --lexflow-dsw-alias-scrollbar-bg-l2: var(--dsw-alias-scrollbar-bg-l2); --lexflow-dsw-alias-scrollbar-hover-l1: var(--dsw-alias-scrollbar-hover-l1); --lexflow-dsw-alias-scrollbar-hover-l2: var(--dsw-alias-scrollbar-hover-l2); --lexflow-dsw-alias-state-business-primary: var(--dsw-alias-state-business-primary); --lexflow-dsw-alias-state-business-primary-hover: var(--dsw-alias-state-business-primary-hover); --lexflow-dsw-alias-state-business-tertiary: var(--dsw-alias-state-business-tertiary); --lexflow-dsw-alias-state-error-primary: var(--dsw-alias-state-error-primary); --lexflow-dsw-alias-state-success-primary: var(--dsw-alias-state-success-primary); --lexflow-dsw-alias-state-warn-label: var(--dsw-alias-state-warn-label); --lexflow-dsw-alias-state-warn-primary: var(--dsw-alias-state-warn-primary); --lexflow-dsw-alias-toast-bg: var(--dsw-alias-toast-bg); --lexflow-dsw-alias-tooltip-bg: var(--dsw-alias-tooltip-bg); --lexflow-dsw-font-family: var(--dsw-font-family); --lexflow-dsw-font-mono: var(--dsw-font-mono); --lexflow-dsw-shadow-lv2: var(--dsw-shadow-lv2); --lexflow-dsw-shadow-lv3: var(--dsw-shadow-lv3); --lexflow-dsw-specific-bubble: var(--dsw-specific-bubble); --lexflow-dsw-specific-bubble-highlight: var(--dsw-specific-bubble-highlight); --lexflow-dsw-specific-input-major: var(--dsw-specific-input-major); --lexflow-dsw-specific-menu: var(--dsw-specific-menu); --lexflow-dsw-specific-selector: var(--dsw-specific-selector); --lexflow-dsw-specific-sidebar-fill: var(--dsw-specific-sidebar-fill); --lexflow-dsw-specific-sidebar-nav-item-active: var(--dsw-specific-sidebar-nav-item-active); --lexflow-dsw-specific-sidebar-nav-item-active-accent: var(--dsw-specific-sidebar-nav-item-active-accent); --lexflow-dsw-specific-sidebar-nav-item-hover: var(--dsw-specific-sidebar-nav-item-hover); --lexflow-dsw-specific-tip: var(--dsw-specific-tip); --lexflow-dsw-static-neutral-bluish-00: var(--dsw-static-neutral-bluish-00); --dsw-font-family: var(--lexflow-font-ui); --dsw-font-mono: var(--lexflow-font-code); --ds-font-family-code: var(--lexflow-font-code); }",
       'html, body, button, input, textarea, select { font-family: var(--lexflow-font-ui, var(--dsw-font-family)) !important; }',
       'body { text-rendering: optimizeLegibility; font-feature-settings: "cv05" 1, "ss03" 1; letter-spacing: .001em; }',
       // 拖拽区限定在对话页头部内部。此前的全局 titleRow 选择器把官方插件管理页
       // 卡片与详情页的 titleRow 一并命成拖拽区：卡片上除按钮文字外的真实鼠标点击
       // 会被窗口拖拽吞掉，表现为"点卡片没反应"（2026-09-30 修复；合成 .click() 测不出）。
-      'header[class*="wSkVaW_header"] div[class*="titleRow"] { -webkit-app-region: drag; min-height: 30px; }',
+      'header[data-window-drag] div[class*="titleRow"] { -webkit-app-region: drag; min-height: 30px; }',
       'div[class*="titleRow"] button, div[class*="titleRow"] input, div[class*="titleRow"] [role="button"] { -webkit-app-region: no-drag; }',
       // 对话头部不得作为拖拽区，否则左侧栏开关点不动。
       // 底座给 header 打了 data-window-drag，darwin 下由
@@ -258,39 +274,39 @@ window.__ModuleLoader__.load({
       // 原生层判定时点击仍被当作拖拽吞掉。底座自己也踩过同类问题（见上方 2026-09-30 的 titleRow 记录）。
       // 修法：header 整体改 no-drag，窗口拖动交给顶部拖拽条承担——它固定覆盖窗口最上方整条宽度，
       // 且位于开关（top:20px）之上，两者互不干扰。经用户手测确认此状态可正常开合左栏。
-      'header[class*="wSkVaW_header"] { -webkit-app-region: no-drag !important; }',
-      'header[class*="wSkVaW_header"]::after { display: none !important; }',
+      'header[data-window-drag] { -webkit-app-region: no-drag !important; }',
+      'header[data-window-drag]::after { display: none !important; }',
       // 0.1.7 把 header 从块/弹性布局改成 CSS Grid（grid-template-columns: auto minmax(0,1fr)、
       // min-height 76px），LexFlow 继续用 flex 是刻意选择：上面这条 display:flex + min-height:48px
       // 会覆盖底座网格，LexFlow 自绘的标题/页签/工具条排布依赖 flex 顺序（titleCluster/tabs/headerUtilities/corner
       // 的 order 1-4），改回网格会打乱既有排布，故保留覆盖。
-      'header[class*="wSkVaW_header"] { align-items: center !important; box-sizing: border-box !important; display: flex !important; flex-wrap: nowrap !important; flex-direction: row !important; gap: 12px !important; min-height: 48px !important; padding: 18px 28px 0 !important; writing-mode: horizontal-tb !important; }',
+      'header[data-window-drag] { align-items: center !important; box-sizing: border-box !important; display: flex !important; flex-wrap: nowrap !important; flex-direction: row !important; gap: 12px !important; min-height: 48px !important; padding: 18px 28px 0 !important; writing-mode: horizontal-tb !important; }',
       // 0.1.7 新增 headerLeading（插槽 conversation.header.leading，0.1.7 底座自身无注册者）。
       // 它原本靠网格 grid-area:1/1 定位；LexFlow 改为 flex 后它会成为普通 flex 项，
       // 与 LexFlow 自绘的头部控件抢位。LexFlow 已有自己的侧栏开关与安全区方案，故隐藏它。
-      'header[class*="wSkVaW_header"] > [class*="headerLeading"] { display: none !important; }',
+      'header[data-window-drag] > [class*="headerLeading"] { display: none !important; }',
       // 0.1.7 在 header 与 titleRow 之间插入了一层包裹 div（display:contents）。旧规则用直接子元素
       // 选择器会失配，titleRow 保持 flex 盒，把「日志」与右侧边栏开关困在标题行内，而「对话／轨迹」
       // 被 margin-left:auto 推到最右，导致顶部顺序变成「标题 项目 日志 开关 … 对话 轨迹」。
       // 这里同时匹配两种结构（0.1.5 的直接子元素、0.1.7 的一层包裹），使 titleCluster／tabs／
       // headerUtilities／headerCorner 重新成为 header 的兄弟项，order 1-4 与 auto 外边距恢复
       // 设计要求顺序：标题与项目 → 对话 → 轨迹 → Session 日志。
-      'header[class*="wSkVaW_header"] > div[class*="titleRow"], header[class*="wSkVaW_header"] > div > div[class*="titleRow"] { display: contents !important; }',
+      'header[data-window-drag] > div[class*="titleRow"], header[data-window-drag] > div > div[class*="titleRow"] { display: contents !important; }',
       // 0.1.7 新增 --dsh-frame-leading-clearance（底座侧栏收起时由 ui-layout 在 frame 上发布，
       // 供 titleRow 的 padding-inline-start 使用）。LexFlow 把 titleRow 拉成 display:contents、
       // 改由 header 自身的 padding-left 控制安全区，故不消费该变量；下方两条固定值保持不变。
       // 0.1.7 的底座初值为 160px／全屏 84px，与 LexFlow 的 142px／56px 不一致，属实机核验项。
-      'header[class*="wSkVaW_header"] div[class*="titleCluster"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 1 1 auto !important; min-width: 0 !important; order: 1 !important; }',
-      'header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; flex-direction: row !important; gap: 12px !important; margin: 0 8px 0 auto !important; order: 2 !important; padding: 0 !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; }',
-      'header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] button { align-items: center !important; display: inline-flex !important; flex: 0 0 auto !important; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px) !important; font-weight: 500 !important; height: 28px !important; justify-content: center !important; line-height: 20px !important; margin: 0 !important; padding: 4px 0 !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; }',
-      'header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] button::before, header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] button::after { box-shadow: none !important; text-decoration: none !important; }',
-      'header[class*="wSkVaW_header"] div[class*="wSkVaW_headerUtilities"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; margin-left: 0 !important; min-width: 0 !important; order: 3 !important; }',
-      'header[class*="wSkVaW_header"] .wSkVaW_crumbCurrent { font-weight: 700 !important; }',
+      'header[data-window-drag] div[class*="titleCluster"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 1 1 auto !important; min-width: 0 !important; order: 1 !important; }',
+      'header[data-window-drag] div[class*="_tabs"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; flex-direction: row !important; gap: 12px !important; margin: 0 8px 0 auto !important; order: 2 !important; padding: 0 !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; }',
+      'header[data-window-drag] div[class*="_tabs"] button { align-items: center !important; display: inline-flex !important; flex: 0 0 auto !important; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px) !important; font-weight: 500 !important; height: 28px !important; justify-content: center !important; line-height: 20px !important; margin: 0 !important; padding: 4px 0 !important; white-space: nowrap !important; writing-mode: horizontal-tb !important; }',
+      'header[data-window-drag] div[class*="_tabs"] button::before, header[data-window-drag] div[class*="_tabs"] button::after { box-shadow: none !important; text-decoration: none !important; }',
+      'header[data-window-drag] div[class*="_headerUtilities"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; margin-left: 0 !important; min-width: 0 !important; order: 3 !important; }',
+      'header[data-window-drag] [class*="_crumbCurrent"] { font-weight: 700 !important; }',
       // 0.1.5 的右侧边栏开关（dsh-client-ui-sidebar-right 的 ExpandButton）注册在插槽
       // conversation.session.header.corner。适配层把 titleRow 拉成 display:contents 后它成为 header 的
       // 直接 flex 项，而适配层只给了 titleCluster/tabs/headerUtilities 顺序，它取默认 order 0 被排到
       // 标题左侧。这里补 order 4，让它落到头部最右（“日志”右侧），与顶部其它项同一条中心线。
-      'header[class*="wSkVaW_header"] div[class*="wSkVaW_headerCorner"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; order: 4 !important; }',
+      'header[data-window-drag] div[class*="_headerCorner"] { align-items: center !important; align-self: center !important; display: flex !important; flex: 0 0 auto !important; order: 4 !important; }',
       // 顶部右段（「已应用 N」与「日志」）在列宽不足时自动收起：头部是 nowrap 的单行 flex，
       // 中央列被右栏或窄窗压窄时这两项既不换行也不隐藏，只能被裁切、或与右栏相互重叠
       //（2026-10-07 用户反馈"无法正常缩回"）。改为按头部自身宽度判定，放不下就整段收起，
@@ -316,11 +332,11 @@ window.__ModuleLoader__.load({
       // 右边界加 44px（28px 原有内边距 + 16px 箭头间隙）推导（窗口化 86+28+44=158、
       // 全屏 18+28+44=90 的等价结果），底座改按钮位置或宽度时自动跟随，不再复发重叠。
       // header 与 LexFlow 页面共用同一变量。
-      '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
+      '[data-sidebar-collapsed] header[data-window-drag] { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
       // 对话页顶部没有返回箭头，那 28px 槽位（--lexflow-leading-clearance 中为箭头预留的
       // 部分）在此纯属空置，标题因此被推离侧栏开关约 28px（2026-10-04 用户反馈：半屏时
       // 标题距左侧缩放按钮过远）。对话页只保留箭头与开关之间的 16px 可见间隙。
-      '[data-sidebar-collapsed] header[class*="wSkVaW_header"] { padding-left: var(--lexflow-leading-clearance-compact, 130px) !important; }',
+      '[data-sidebar-collapsed] header[data-window-drag] { padding-left: var(--lexflow-leading-clearance-compact, 130px) !important; }',
       // 展开方向的重叠保护：收起态的安全区（130px）在点击瞬间被移除，而 header 此时
       // 仍停在 x≈0（列位移刚起步），标题于是掉到基础内边距 28px——正好压在交通灯与
       // 侧栏开关（x 86~114）上，约 130ms 后才随列右移脱离。用户所见即"标题从交通灯
@@ -335,7 +351,7 @@ window.__ModuleLoader__.load({
       // 只需给 padding-left 声明过渡：收起态由上面的规则给 130px，展开态由基础规则
       // （header 自身的 padding: 18px 28px 0）给 28px，两者即过渡的起止值。
       // 无需再写展开态规则——多写一条反而会引入优先级竞争，把收起态的安全区覆盖掉。
-      'header[class*="wSkVaW_header"] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
+      'header[data-window-drag] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
       // LexFlow 一级页面（工作流／档案室／工作台／预览）收起时同样需要让出交通灯与开关安全区。
       '[data-sidebar-collapsed] .lexflowWorkflowPage, [data-sidebar-collapsed] .lexflowWorkbenchPage, [data-sidebar-collapsed] .lexflowWorkflowPreview { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
       // 官方面板页（插件管理、设置等）同样需要收起态安全区。
@@ -345,7 +361,7 @@ window.__ModuleLoader__.load({
       // 用属性选择器 [class*="_page"] 而非精确类名，以适配底座每次构建的哈希变化。
       // 过渡与对话页标题同源，使展开时安全区与列位移同步收窄、不出现中途重叠。
       '[data-sidebar-collapsed] [class*="_page"]:has(> [class*="_pageHead"]), [data-sidebar-collapsed] [class*="_page"]:has(> [class*="_detailTop"]) { padding-left: var(--lexflow-leading-clearance, 158px) !important; }',
-      'header[class*="wSkVaW_header"], [class*="_page"] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
+      'header[data-window-drag], [class*="_page"] { transition: padding-left var(--ds-transition-duration-slow, .3s) var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1)) !important; }',
       // 铺满形态的底色必须画在 dock 上，不能画在面板容器上。
       // 底座的面板容器本身是透明且 pointer-events:none 的，收起时靠把内部 dock
       // 整体滑出视口（transform: translateX(var(--dsh-sidebar-width)) + visibility:hidden）
@@ -367,8 +383,8 @@ window.__ModuleLoader__.load({
       // 全屏（macOS 原生全屏）下没有交通灯，底座自身会把起点收回 10px；此处的
       // 顶部间距同样收回，避免多出一条空带。
       'html[data-fullscreen] [data-lexflow-layout="rightbar"] [data-sidebar-right-panel="fullscreen"] [class*="tabStrip"] { padding-top: 6px !important; }',
-      '@media (max-width: 900px) { header[class*="wSkVaW_header"] { gap: 8px !important; padding-right: 12px !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { gap: 8px !important; margin-right: 8px !important; } header[class*="wSkVaW_header"] .wSkVaW_crumb { max-width: min(180px, 24vw) !important; } }',
-      '@media (max-width: 700px) { header[class*="wSkVaW_header"] { align-items: stretch !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 4px !important; min-height: 116px !important; overflow: hidden !important; } header[class*="wSkVaW_header"] > div[class*="titleRow"] { align-items: stretch !important; display: block !important; flex: 0 0 auto !important; max-width: 100% !important; min-width: 0 !important; order: 1 !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="titleCluster"] { flex: 0 0 auto !important; width: 100% !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_headerUtilities"] { align-self: flex-start !important; margin-left: 0 !important; order: 2 !important; } header[class*="wSkVaW_header"] div[class*="wSkVaW_tabs"] { align-self: flex-start !important; margin-left: 0 !important; margin-right: 0 !important; order: 2 !important; } }',
+      '@media (max-width: 900px) { header[data-window-drag] { gap: 8px !important; padding-right: 12px !important; } header[data-window-drag] div[class*="_tabs"] { gap: 8px !important; margin-right: 8px !important; } header[data-window-drag] [class*="_crumb"] { max-width: min(180px, 24vw) !important; } }',
+      '@media (max-width: 700px) { header[data-window-drag] { align-items: stretch !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 4px !important; min-height: 116px !important; overflow: hidden !important; } header[data-window-drag] > div[class*="titleRow"] { align-items: stretch !important; display: block !important; flex: 0 0 auto !important; max-width: 100% !important; min-width: 0 !important; order: 1 !important; width: 100% !important; } header[data-window-drag] div[class*="titleCluster"] { flex: 0 0 auto !important; width: 100% !important; } header[data-window-drag] div[class*="_headerUtilities"] { align-self: flex-start !important; margin-left: 0 !important; order: 2 !important; } header[data-window-drag] div[class*="_tabs"] { align-self: flex-start !important; margin-left: 0 !important; margin-right: 0 !important; order: 2 !important; } }',
       '[data-lexflow-layout="frame"] { isolation: isolate; min-width: 0; min-height: 0; position: relative; }',
       '[data-lexflow-layout="center"] { min-width: 0; min-height: 0; overflow: hidden !important; position: relative; }',
       // 右栏列不得裁切：底座右侧边栏在窄视口（<768px）切换为全屏形态，面板按 100vw
@@ -391,9 +407,12 @@ window.__ModuleLoader__.load({
       '[data-lexflow-layout="frame"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) .lexflowTopSidebarToggle { display: none !important; }',
       '[data-lexflow-layout="frame"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) [data-lexflow-layout="sidebar"] { pointer-events: none !important; }',
       '[data-lexflow-layout="center"] > *, [data-lexflow-layout="center"] [data-slot="conversation.session"] { max-width: 100%; min-width: 0; }',
-      '[data-lexflow-layout="center"] > [class*="wSkVaW_root"] { isolation: isolate; overflow: hidden !important; position: relative; }',
-      '[data-lexflow-layout="center"] > [class*="wSkVaW_root"]::before { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 96%, transparent) 0%, color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent) 54%, transparent 100%); content: ""; height: 104px; inset: 0 0 auto; pointer-events: none; position: absolute; z-index: 2; }',
-      '[data-lexflow-layout="center"] > [class*="wSkVaW_root"] > * { position: relative; z-index: 3; }',
+      `${CONVERSATION_ROOT_SELECTOR} { isolation: isolate; overflow: hidden !important; position: relative; }`,
+      // 渐变只承担标题栏背板与顶部收边，不再向正文深处铺开：底座已有
+      // `[data-conversation-scroll]` 的 56px 蒙版，若再叠 104px、96% 不透明的底色，
+      // 第一行正文会被洗到几乎不可读（2026-10-17 与独立客户端对照后收窄）。
+      `${CONVERSATION_ROOT_SELECTOR}::before { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 96%, transparent) 0%, color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent) 54%, transparent 100%); content: ""; height: 56px; inset: 0 0 auto; pointer-events: none; position: absolute; z-index: 2; }`,
+      `${CONVERSATION_ROOT_SELECTOR} > * { position: relative; z-index: 3; }`,
       '[data-conversation-scroll] { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 56px); mask-image: linear-gradient(180deg, transparent 0, #000 56px); }',
       // 0.1.7 会话根的 data-phase 只发 hero/settling/active（"inert" 仅出现在输入区自身的 data-phase 上，
       // 且不在 [data-conversation-scroll] 的祖先链上），故 inert 分支在 0.1.7 实为空转；
@@ -408,7 +427,7 @@ window.__ModuleLoader__.load({
       // 遮盖目标（侧栏 z3、拖拽竖线 z2、侧栏开关 z30）全部在 1000 以下，1050 仍完整遮盖。
       '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) { isolation: isolate !important; position: fixed !important; inset: 0 !important; z-index: 1050 !important; }',
       '[role="presentation"]:has(> [role="dialog"][aria-modal="true"]) > [role="dialog"][aria-modal="true"] { position: relative !important; z-index: 1 !important; }',
-      '[data-lexflow-modal-open="true"] .lexflowFrame_handle, [data-lexflow-modal-open="true"] [class*="wSkVaW_widthHandle"] { pointer-events: none !important; visibility: hidden !important; }',
+      '[data-lexflow-modal-open="true"] .lexflowFrame_handle, [data-lexflow-modal-open="true"] [class*="_widthHandle"] { pointer-events: none !important; visibility: hidden !important; }',
       // 弹窗打开时一并隐藏运行态 Flowing 条：它是 position: fixed 的浮层（见下方 z-index 规则），
       // 与遮罩、弹窗卡片的层叠关系取决于底座当时的结构，逐个对层级既不可靠也无意义——
       // 弹窗期间用户的注意力在弹窗内，过程指示显示在遮罩下或遮罩上都是噪音。直接隐藏最干净。
@@ -453,33 +472,54 @@ window.__ModuleLoader__.load({
       'div[class*="bubble"] { border-radius: 14px !important; box-sizing: border-box; max-width: 100%; overflow-wrap: anywhere; }',
       'div[class*="bubble"] { padding: 10px 14px !important; font-size: var(--dsh-content-font-size, 14px) !important; line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }',
       'div[class*="composerSeat"] textarea, div[class*="composerSeat"] [data-input-mirror], div[class*="composerSeat"] [data-input-backdrop] { box-sizing: border-box !important; font-family: var(--lexflow-font-ui, var(--dsw-font-family)) !important; font-size: var(--dsh-content-font-size, 14px) !important; line-height: calc(24px + var(--dsh-content-font-delta, 0px)) !important; max-width: 100% !important; }',
-      // 消息区现行结构（0.1.5-rc.1）：助手正文 hWmORq、消息列 EvIC1a、滚动区 EvIC1a_scroll。
-      // 适配层此前使用的 0.1.4 消息容器类名在 0.1.5 中已不存在（对应规则实际未生效），
-      // 此处换到现行锚点，并落实紧凑密度：正文行高 22px、流间距 12px。
-      '[class*="hWmORq_root"] { line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; max-width: 100% !important; }',
-      '[class*="hWmORq_body"] { gap: 12px !important; min-width: 0 !important; }',
-      // 0.1.7 把正文 Markdown 的 CSS module 哈希由 markdown_kcgor 换成 markdown_kj4sz
-      // （0.1.5-rc.1 与 0.1.7-alpha.1 的 dsh-web-frontend 产物各含其一，旧哈希在 0.1.7 已无引用）；
-      // 以下 6 条规则并列匹配两个哈希，保留旧类名以便回滚；hWmORq_root/body 在 0.1.7 仍有效，故不改。
-      '[class*="hWmORq"] [class*="markdown_kcgor"], [class*="hWmORq"] [class*="markdown_kj4sz"] { font-size: var(--dsh-content-font-size, 14px) !important; line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; max-width: 100% !important; }',
-      '[class*="hWmORq"] [class*="markdown_kcgor"] p, [class*="hWmORq"] [class*="markdown_kj4sz"] p { margin: 6px 0 !important; }',
-      '[class*="hWmORq"] [class*="markdown_kcgor"] :where(ul, ol), [class*="hWmORq"] [class*="markdown_kj4sz"] :where(ul, ol) { margin: 6px 0 !important; }',
-      '[class*="hWmORq"] [class*="markdown_kcgor"] li:not(:first-child), [class*="hWmORq"] [class*="markdown_kj4sz"] li:not(:first-child) { margin-top: 3px !important; }',
-      '[class*="hWmORq"] [class*="markdown_kcgor"] li::marker, [class*="hWmORq"] [class*="markdown_kj4sz"] li::marker { line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }',
-      '[class*="hWmORq"] [class*="markdown_kcgor"] :where(pre, blockquote, hr), [class*="hWmORq"] [class*="markdown_kj4sz"] :where(pre, blockquote, hr) { margin-top: 8px !important; margin-bottom: 8px !important; max-width: 100% !important; }',
+      // 消息区现行结构（0.2.1）：助手正文 hWmORq、消息列 EvIC1a、滚动区 EvIC1a_scroll。
+      // 0.2.1 的 Markdown 容器哈希再次变化（_markdown_1ypvv_5）。此前按 markdown_kcgor／
+      // markdown_kj4sz 写的紧凑规则因此全部失配，界面重新退回 24px 行高、16px 段距和大表格行高。
+      // 固定做法：以 hWmORq_body 这一语义外层为锚点，不再依赖每次构建都变化的 Markdown 类名。
+      '[class*="hWmORq_root"], [class*="_markdown"] { max-width: 100% !important; }',
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} { line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} { gap: 10px !important; min-width: 0 !important; }`,
+      `html[data-lexflow-density="comfortable"] ${MESSAGE_BODY_SELECTOR} { gap: 12px !important; min-width: 0 !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} :where(p, li) { line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} p { margin: 6px 0 !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} :where(ul, ol) { margin: 8px 0 !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} li:not(:first-child) { margin-top: 3px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} li::marker { line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} :where(h1, h2, h3) { margin: 18px 0 8px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} :where(h4, h5, h6) { margin: 12px 0 6px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} h1 { font-size: calc(20px + var(--dsh-content-font-delta, 0px)) !important; line-height: calc(27px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} h2 { font-size: calc(18px + var(--dsh-content-font-delta, 0px)) !important; line-height: calc(24px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} h3 { font-size: calc(16px + var(--dsh-content-font-delta, 0px)) !important; line-height: calc(22px + var(--dsh-content-font-delta, 0px)) !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table th, html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table td { line-height: calc(20px + var(--dsh-content-font-delta, 0px)) !important; padding-top: 6px !important; padding-bottom: 6px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table th:not(:first-child), html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table td:not(:first-child) { padding-left: 12px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table th:not(:last-child), html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} table td:not(:last-child) { padding-right: 12px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_BODY_SELECTOR} :where(pre, blockquote, hr) { margin-top: 8px !important; margin-bottom: 8px !important; max-width: 100% !important; }`,
+      'html[data-lexflow-density="compact"] [data-lexflow-layout="center"] [class*="_actions"] { margin-top: 10px !important; }',
+      'html[data-lexflow-density="compact"] div[class*="bubble"] { padding: 8px 12px !important; }',
       // 此规则不得设置 max-width／min-width：EvIC1a_column 的 max-width 由
       // --dsh-chat-content-width 驱动，是原生列宽调整器的目标属性，覆盖它会让调整器失效。
-      '[class*="EvIC1a_column"] { --dsh-chat-flow-gap: 12px !important; }',
+      `${MESSAGE_COLUMN_SELECTOR} { --dsh-chat-flow-gap: 12px !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_COLUMN_SELECTOR} { --dsh-chat-flow-gap: 10px !important; }`,
+      'html[data-lexflow-density="compact"] [data-chat-group-part="response"] { --dsh-chat-flow-gap: 8px !important; }',
+      'html[data-lexflow-density="compact"] [data-chat-flow-kind="turn-process"] { --dsh-chat-flow-gap: 12px !important; }',
       // 对话内容与输入区之间留出呼吸空间，避免正文贴着输入框。
-      '[class*="EvIC1a_root"] { padding-bottom: 12px !important; }',
+      `${MESSAGE_ROOT_SELECTOR} { padding-bottom: 12px !important; }`,
       // 工具行（ToolRow）等组件里有一类"仅供朗读"的隐藏元素：position: absolute、1×1、clip 到不可见，
       // 但底座 CSS 不给 top/left，其静态位置在个别情形下会落到会话内容末尾之外——运行中的工具调用、
       // 且展开其详情时即会触发——从而撑大滚动容器的可滚动区域。表现为输入框下方多出一段可以滚下去
       // 的空白，像"纸的底部下面还有纸"（用户 2026-09-27 反馈；监视器已记录到输入框因此上移 107px）。
       // 实测：把这样一个元素推到内容末尾之下 800px，滚动高度 +801；钉到包含块左上角后回到基线。
       // 这些元素已被 clip 裁成 1×1，位置对视觉与朗读均无影响，故一律钉住。
-      '[class*="EvIC1a_column"] [class*="visuallyHidden"] { top: 0 !important; left: 0 !important; }',
-      '[class*="EvIC1a_scroll"] { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 30px !important; }',
+      '[data-lexflow-layout="center"] [class*="visuallyHidden"] { top: 0 !important; left: 0 !important; }',
+      // 下内边距必须为 0：桌面版的输入区座椅（composerSeat）就在消息滚动容器内部，
+      // 若沿用网页版的 30px 底部留白，整条输入区会被顶高 30px、离窗口底边露出一条空白
+      //（2026-10-17 实测 innerHeight 820、座椅底边 790）。呼吸空间由座椅自身渐隐与
+      // 消息根的 padding-bottom 承担。
+      `${MESSAGE_SCROLL_SELECTOR} { padding: 16px calc(var(--dsh-composer-side-clearance) + 16px) 0 !important; }`,
+      `html[data-lexflow-density="compact"] ${MESSAGE_SCROLL_SELECTOR} { padding-top: 12px !important; }`,
+      'html[data-lexflow-density="compact"] .lexflowMarkdownEditor .cm-scroller { line-height: 1.65 !important; }',
+      'html[data-lexflow-density="compact"] .lexflowMarkdownBlockPreview table { margin: 8px 0 !important; }',
+      'html[data-lexflow-density="compact"] .lexflowMarkdownBlockPreview table :where(th, td) { padding: 6px 8px !important; line-height: 1.55 !important; }',
       // 输入区形态（2026-09-27 三次定稿）：
       //   信息带合并为一行、全部左起：上下文 → 权限(仅图标) → 会话统计 → token 用量；模型仍在最右；
       //   输入框沉底、发送键入框内右侧垂直居中；输入框与窗口底部留出间距。
@@ -506,13 +546,22 @@ window.__ModuleLoader__.load({
       // 绘制顺序改按 flex 的 order 走；若沿用原来的 order: 1（dock 在前），row 会盖住两个
       // 子元素，上下文与统计将点不开详情（实测 2026-09-27）。抬到 z-index: 2 即可压住 row。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) { position: relative !important; }',
+      // 对话正文默认只使用中央列的 64%，且最低 680px，导致侧栏收窄后多出的空间
+      // 仍变成两侧空白。这里仅在用户尚未手动拖动对话宽度时把自动宽度提到 78%；
+      // 用户拖动后底座会写入 --dsh-chat-user-width，本规则通过 var() 优先沿用该值，
+      // 不覆盖用户选择，也不触碰 EvIC1a_column 的 max-width（否则原生调宽手柄失效）。
+      `${CHAT_BODY_SELECTOR} { --dsh-chat-content-width: var(--dsh-chat-user-width, clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * .78), 920px)) !important; }`,
       // 会话正文滚到底会与信息带重叠：底座的 composerSeat 只在自己头 36px 内由透明渐变到
       // 不透明，而它的顶边**正好落在信息带那一行**，于是正文半透明地透到按钮上，字与图标糊在一起。
       // 这里把不透明段整段提到信息带起点，并在其上方补一段等长（36px）的渐隐，
       // 正文因此在到达按钮之前就淡出到界面底色，且不出现硬边。
       // 这是对底座外观的覆写，属适配层职责：第三层业务插件不参与，底座若改类名需同步此选择器。
-      '[class*="wSkVaW_composerSeat"] { background: var(--dsw-alias-bg-base) !important; }',
-      '[class*="wSkVaW_composerSeat"]::before { background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 0%, transparent) 0px, var(--dsw-alias-bg-base) 36px); content: ""; height: 36px; left: 0; pointer-events: none; position: absolute; right: 0; top: -36px; }',
+      // 必须只匹配语义后缀 `_composerSeat`：底座网页版前缀为 wSkVaW_、桌面版为 ST7X_W_，
+      // 前缀随构建哈希变化，写死任何一个都会让本条规则在另一种宿主里空转。
+      // 2026-10-17 实测：桌面版 82px 高的座椅背景透明、只有自身头 36px 的渐隐，
+      // 信息带（上下文／权限／统计／模型）正好落在透明段内，正文直接透到按钮上。
+      '[class*="_composerSeat"] { background: var(--dsw-alias-bg-base) !important; }',
+      '[class*="_composerSeat"]::before { background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 0%, transparent) 0px, var(--dsw-alias-bg-base) 36px); content: ""; height: 36px; left: 0; pointer-events: none; position: absolute; right: 0; top: -36px; }',
       // 会话正文滚到底会与信息带重叠（上下文／权限／统计／模型），字直接压在图标上读不清。
       // 给这四个控件补一层半透明底色来压住身后的文字。底色取界面底色的六成：
       // 界面底色是平整的浅色，六成已足以把字压成浅痕，又不至于像一块贴上去的实心块
@@ -523,7 +572,7 @@ window.__ModuleLoader__.load({
       // 必须用精确词匹配 [class~=] 而非子串匹配 [class*=]：后者的子串会一并命中按钮内部的
       // `_7KE1Ra_triggerLabel`／`_7KE1Ra_triggerEffort`／`iWlSmW_triggerIcon`，
       // 使每一段文字各自多出一层圆角底色——表现为"Flash 与 High 之间有空隙、上下两层颜色"。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="JObwrW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="iWlSmW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="_7KE1Ra_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] [class~="bOPqQW_pill"] { -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; border-radius: 999px !important; background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="JObwrW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="iWlSmW_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class~="_7KE1Ra_trigger"], [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) :is([data-composer-stat], [data-composer-stats]) [class~="bOPqQW_pill"] { -webkit-backdrop-filter: blur(6px) !important; backdrop-filter: blur(6px) !important; border-radius: 999px !important; background-color: color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) !important; }',
       // 信息带（dock）必须与输入框卡片（card）同宽同左：dock 是 root 的绝对定位子项，
       // 而 card 是 root 的 flex 子项（宽度受列宽约束、并在 root 内水平居中）。
       // 此前用 `left: calc((100% - var(--dsh-composer-card-max-width)) / 2)` 反推位置，
@@ -544,18 +593,22 @@ window.__ModuleLoader__.load({
       // 写死的 14px 就会让这两个按钮与权限行脱开、浮到正文上（2026-10-07 用户反馈
       // "发送图片后把对话上的工具顶上去"）。14px 仅作为变量缺席时的兜底。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [class*="JObwrW_root"] { left: 48px !important; position: absolute !important; top: var(--lexflow-composer-band-y, 14px) !important; transform: translateY(-50%) !important; }',
+      // 0.2.1 把统计区由一个 data-composer-stats 容器拆成两个 data-composer-stat 条目，
+      // 槽位包装层只保留 display:contents。若仍按旧容器绝对定位，两个条目会落回 dock
+      // 的普通流位置，在输入框上方叠成一条（用户 2026-10-17 反馈"这两个按钮漂移了"）。
+      // 新版把槽位包装层恢复为具名 flex 容器，让两个统计条目并排；旧容器规则继续保留。
       // 统计胶囊接在上下文之后：8 + 28(权限) + 12 + 22(上下文) + 12 = 82px。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { left: 82px !important; position: absolute !important; top: var(--lexflow-composer-band-y, 14px) !important; transform: translateY(-50%) !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] > [data-slot="conversation.composer.dock"]:has(> [data-composer-stat]), [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats] { align-items: center !important; display: flex !important; gap: 12px !important; left: 82px !important; position: absolute !important; top: var(--lexflow-composer-band-y, 14px) !important; transform: translateY(-50%) !important; }',
       // 新对话没有上下文计量器，统计胶囊需整体左移补位，否则权限与统计之间会空出一格：
       // 8 + 28(权限) + 12 = 48px。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"]:not(:has([class~="JObwrW_root"])) [data-composer-stats] { left: 48px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"]:not(:has([class~="JObwrW_root"])) > [data-slot="conversation.composer.dock"]:has(> [data-composer-stat]), [class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"]:not(:has([class~="JObwrW_root"])) [data-composer-stats] { left: 48px !important; }',
       // "性能与用量"显示策略（定稿，无需"关闭"选项）：简洁档=彻底不显示（compact 的
       // 胶囊是纯 span，detailed 的是 button——用 :has(button) 区分）；详细档=仅显示图标，
       // 点开看详情（label 收起、图标保留，点击弹详情窗不受影响）。
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] [data-composer-stats]:not(:has(button)) { display: none !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] { gap: 0 !important; padding: 2px 4px !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] [class*="bOPqQW_label"] { display: none !important; }',
-      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [data-composer-stats] button[class*="bOPqQW_pill"] svg { height: 14px !important; width: 14px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="uV2eYG_dock"] :is([data-composer-stat], [data-composer-stats]):not(:has(button)) { display: none !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) :is([data-composer-stat], [data-composer-stats]) button[class*="bOPqQW_pill"] { gap: 0 !important; padding: 2px 4px !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) :is([data-composer-stat], [data-composer-stats]) button[class*="bOPqQW_pill"] [class*="bOPqQW_label"] { display: none !important; }',
+      '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) :is([data-composer-stat], [data-composer-stats]) button[class*="bOPqQW_pill"] svg { height: 14px !important; width: 14px !important; }',
       // 上下文计量器仅图标：百分数是无类名的裸 span（紧跟 svg 之后），用
       // .JObwrW_trigger > svg + span 收起；图标（环形进度 svg）保留；详情弹窗不受影响。
       '[class*="uV2eYG_root"]:not([class*="uV2eYG_hero"]) [class*="JObwrW_trigger"] { gap: 0 !important; padding: 2px 4px !important; }',
@@ -589,7 +642,7 @@ window.__ModuleLoader__.load({
       // 交付物卡片上边距 16→12px。
       '[class*="pXSMma_headline"] { font-size: 22px !important; line-height: 28px !important; }',
       '[class*="pXSMma_stack"] { gap: 10px !important; }',
-      '[class*="wSkVaW_composerHero"] { padding-bottom: 24px !important; }',
+      '[class*="_composerHero"] { padding-bottom: 24px !important; }',
       // 0.1.7 把 deliverables 包拆分：原 ProducedFiles（P4kPIW_root，已不存在）的"变更文件卡片"
       // 职责落到 ChangedFiles.module.css 的 hz8-rW_card；另有 Deliverables 的 nyYjTG_root
       // （批量交付卡片栅格）与 ReviewTab 的 ZDDmpq_root（右侧栏对比页），均非同一节点。
@@ -600,13 +653,13 @@ window.__ModuleLoader__.load({
       // 该 label 常驻、且运行态与完成态共用同一类名（0.1.7 的 data-phase 只剩 hero/settling/active，
       // 此处也没有仅运行态才有的 data-* 标记），纯类名匹配会连"已完成工作/用时 …"一起上色，
       // 故新分支改由 sweep() 给运行态节点打 data-lexflow-flowing 后再上色；旧分支原样保留以便回滚。
-      '[data-chat-running], [data-chat-flow-kind="turn-process"] { background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
+      '[data-chat-running], [data-chat-flow-kind="turn-process"] { background-color: transparent !important; background-image: linear-gradient(90deg, var(--lexflow-flowing-start) 0%, var(--lexflow-flowing-end) 40%, var(--lexflow-flowing-middle) 50%, var(--lexflow-flowing-end) 60%, var(--lexflow-flowing-start) 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
       // 运行态文案的替换不通过改写文本实现：该文案由 React 持有并每秒随用时重渲染，
       // 改写 textContent 会被覆盖回「深度求索中…」（0.1.5 时代的同类实现同样复现回退）。
       // 这里只让 sweep() 打 data-lexflow-flowing 标记，由 CSS 把原文收为零字号，
       // 用 ::after 呈现 Flowing...，React 如何重渲染都不影响显示。
       '[data-chat-running][data-lexflow-flowing="true"] { font-size: 0 !important; }',
-      '[data-chat-running][data-lexflow-flowing="true"]::after { content: "Flowing..."; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px); line-height: calc(24px + var(--dsh-content-font-delta, 0px)); background-color: transparent !important; background-image: linear-gradient(90deg, #c96547 0%, #da7756 40%, #f0c0ae 50%, #da7756 60%, #c96547 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
+      '[data-chat-running][data-lexflow-flowing="true"]::after { content: "Flowing..."; font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px); line-height: calc(24px + var(--dsh-content-font-delta, 0px)); background-color: transparent !important; background-image: linear-gradient(90deg, var(--lexflow-flowing-start) 0%, var(--lexflow-flowing-end) 40%, var(--lexflow-flowing-middle) 50%, var(--lexflow-flowing-end) 60%, var(--lexflow-flowing-start) 100%) !important; background-clip: text !important; -webkit-background-clip: text !important; color: transparent !important; -webkit-text-fill-color: transparent !important; }',
       // 0.1.7 无独立计时元素：用时由 formatLiveRunDuration 拼进 label 文案（"深度求索中，用时{duration}"），
       // 不再有 _turnStatusClock 的对应节点，故此处只保留旧规则供 0.1.5 回滚。
       '[data-chat-running] [class*="visuallyHidden"], [data-chat-running] [class*="_turnStatusClock"] { background: none !important; color: #8b746c !important; -webkit-text-fill-color: #8b746c !important; }',
@@ -638,7 +691,10 @@ window.__ModuleLoader__.load({
       // 修法改为纵向让开：拖拽条高 20px，正好止于开关顶边（top:20px），重叠归零。
       // 不用水平挖洞（clip-path）——那能否影响原生层判定未经实测，不采用未验证的机制。
       // 交通灯由系统绘制、不依赖本拖拽条；20px 的拖拽高度仍覆盖整条窗口顶部。
-      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: 20px; left: 0; right: 0; top: 0; position: fixed; z-index: 5; }',
+      // 拖拽条必须比侧栏开关的 top 更浅，否则开关上半截落进原生拖拽区、点击被窗口拖动吞掉。
+      // 拖拽条高度由交通灯中心线变量推导：官方宿主 24px → 10px，独立应用 34px → 20px。
+      // 两种形态都正好止于 28px 开关上缘，与开关、标题行共用同一条中心线。
+      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: calc(var(--lexflow-traffic-light-center-y, 24px) - 14px); left: 0; right: 0; top: 0; position: fixed; z-index: 5; }',
       'div[class*="logoRow"] button { -webkit-app-region: no-drag; }',
       // 0.1.5 把封面标题容纳类从 headlineText 改为 titleGroup（标题与“预览版”标签同层）。
       // 选择器同时保留旧类名，底座再次改动时不影响旧分支的可读性。
@@ -666,9 +722,16 @@ window.__ModuleLoader__.load({
       const documentElement = document.documentElement
       const wrotePlatform = documentElement.dataset.platform === undefined
       if (wrotePlatform) documentElement.dataset.platform = navigator.userAgent.includes('Macintosh') ? 'darwin' : 'web'
+      const wroteHost = documentElement.dataset.lexflowHost === undefined
+      if (wroteHost) documentElement.dataset.lexflowHost = 'dshDesktop' in window ? 'desktop' : 'web'
+      // 区分“独立 LexFlow 应用”和“官方 DeepSeek Harness 外观包”：两者都可带
+      // dshDesktop 标记，但只有独立应用由 LexFlow preload 注入 window.lexflowWindow。
+      // 顶部交通灯位置不同，必须由这个运行时标记选择对应中心线。
+      const wroteRuntime = documentElement.dataset.lexflowRuntime === undefined
+      if (wroteRuntime) documentElement.dataset.lexflowRuntime = window.lexflowWindow === undefined ? 'harness' : 'lexflow'
       let pending = false
       const captures = new Map()
-      const capture = (event) => { if (event.target?.matches?.('.lexflowFrame_handle, [class*="wSkVaW_widthHandle"]')) captures.set(event.pointerId, event.target) }
+      const capture = (event) => { if (event.target?.matches?.('.lexflowFrame_handle, [class*="_widthHandle"]')) captures.set(event.pointerId, event.target) }
       const release = (event) => captures.delete(event.pointerId)
       document.addEventListener('gotpointercapture', capture, true)
       document.addEventListener('lostpointercapture', release, true)
@@ -691,9 +754,54 @@ window.__ModuleLoader__.load({
         }
       }
       const sweep = () => {
-        if (document.title !== 'LexFlow') document.title = 'LexFlow'
+        // Desktop builds periodically rename the composer's CSS-module prefix
+        // (uV2eYG_* -> yhfFVG_*). Reapply the stable LexFlow class aliases from
+        // data attributes so the input band remains styled across builds.
+        for (const card of document.querySelectorAll('[data-composer-card="true"]')) {
+          const root = card.closest('[class*="_root"]') ?? card.parentElement
+          if (root === null) continue
+          const alias = (element, name) => {
+            if (element && !element.classList.contains(name)) element.classList.add(name)
+          }
+          alias(root, 'uV2eYG_root')
+          if (String(root.className).includes('_hero')) alias(root, 'uV2eYG_hero')
+          alias(card, 'uV2eYG_card')
+          alias(card.querySelector(':scope > [class*="_row"]'), 'uV2eYG_row')
+          alias(card.querySelector('[class*="_trailing"]'), 'uV2eYG_trailing')
+          alias(card.querySelector('[data-input-scroll="true"]'), 'uV2eYG_scroll')
+          alias(card.querySelector('[data-composer-input="true"]'), 'uV2eYG_input')
+          alias(card.querySelector('[data-composer-placeholder="true"]'), 'uV2eYG_placeholder')
+          alias(card.querySelector('button[aria-label="添加文件或调用指令"]'), 'uV2eYG_add')
+          for (const button of card.querySelectorAll('button[class*="_primary"]')) alias(button, 'uV2eYG_primary')
+          alias(root.querySelector('[data-composer-dock="true"]'), 'uV2eYG_dock')
+          const permission = root.querySelector('[data-slot="conversation.input.permission"] button')
+          alias(permission, 'iWlSmW_trigger')
+          for (const element of permission?.querySelectorAll('[class*="_triggerLabel"]') ?? []) alias(element, 'iWlSmW_triggerLabel')
+          for (const element of permission?.querySelectorAll('[class*="_chevron"]') ?? []) alias(element, 'iWlSmW_chevron')
+          const context = root.querySelector('button[aria-label^="上下文已用"]')
+          if (context) {
+            alias(context, 'JObwrW_trigger')
+            alias(context.parentElement, 'JObwrW_root')
+          }
+          for (const stat of root.querySelectorAll('[data-composer-stat]')) {
+            for (const element of stat.querySelectorAll('button')) alias(element, 'bOPqQW_pill')
+            for (const element of stat.querySelectorAll('[class*="_label"]')) alias(element, 'bOPqQW_label')
+          }
+        }
+        const branding = document.documentElement.dataset.lexflowBranding
+        const brandless = branding === 'none'
+        const officialBranding = branding === 'official'
         const headline = document.querySelector('span[class*="headlineText"], span[class*="titleGroup"] > span:not([class*="previewBadge"])')
-        if (headline && headline.textContent !== 'Everything is Workflow') headline.textContent = 'Everything is Workflow'
+        if (brandless) {
+          if (document.title === 'LexFlow') document.title = 'DeepSeek Harness'
+          if (headline && headline.textContent !== '探索未至之境') headline.textContent = '探索未至之境'
+        } else if (officialBranding) {
+          if (document.title === 'LexFlow') document.title = 'DeepSeek Harness'
+          if (headline && headline.textContent !== '探索未至之境') headline.textContent = '探索未至之境'
+        } else {
+          if (document.title !== 'LexFlow') document.title = 'LexFlow'
+          if (headline && headline.textContent !== 'Everything is Workflow') headline.textContent = 'Everything is Workflow'
+        }
         for (const badge of document.querySelectorAll('span[class*="previewBadge"]')) badge.style.display = 'none'
         const flowing = document.querySelector('div[class*="_turnStatus"]:not([class*="_turnStatusClock"])')
         if (flowing) {
@@ -734,7 +842,9 @@ window.__ModuleLoader__.load({
         // 占位符未被注入时（如直接加载 src）不改写，避免写出错误版本号。
         if (LEXFLOW_PRODUCT_VERSION.startsWith('__LEXFLOW_') === false) {
           for (const row of document.querySelectorAll('div[class*="yIbyla_row"]')) {
-            const label = `当前版本：${LEXFLOW_PRODUCT_VERSION}（底层 DeepSeek Harness ${LEXFLOW_DSH_VERSION}）`
+            const label = brandless
+              ? `当前版本：${LEXFLOW_PRODUCT_VERSION}（DeepSeek Harness ${LEXFLOW_DSH_VERSION}）`
+              : `当前版本：${LEXFLOW_PRODUCT_VERSION}（底层 DeepSeek Harness ${LEXFLOW_DSH_VERSION}）`
             if (row.textContent !== label) row.textContent = label
           }
         }
@@ -771,7 +881,7 @@ window.__ModuleLoader__.load({
           window.dispatchEvent(new CustomEvent('lexflow:modal-state', { detail: { open: modalOpen } }))
         }
         if (modalOpen) for (const [pointerId, handle] of captures) { if (handle.hasPointerCapture?.(pointerId)) handle.releasePointerCapture(pointerId); captures.delete(pointerId) }
-        for (const handle of document.querySelectorAll('.lexflowFrame_handle, [class*="wSkVaW_widthHandle"]')) {
+        for (const handle of document.querySelectorAll('.lexflowFrame_handle, [class*="_widthHandle"]')) {
           if (modalOpen) {
             handle.style.setProperty('pointer-events', 'none', 'important')
             handle.style.setProperty('visibility', 'hidden', 'important')
@@ -790,6 +900,9 @@ window.__ModuleLoader__.load({
         })
       })
       observer.observe(document.documentElement, { childList: true, subtree: true })
+      // 品牌设置是 data-* 属性，不会触发 childList 观察；配置切换时显式重跑。
+      const onBrandingChange = () => sweep()
+      window.addEventListener('lexflow:branding-change', onBrandingChange)
       const onSessionRowClick = (event) => {
         const target = event.target?.closest?.('div[class*="sessionRow"][role="treeitem"]')
         if (!target || event.target?.closest?.('button, input, select, textarea, [role="menuitem"]')) return
@@ -811,8 +924,11 @@ window.__ModuleLoader__.load({
         // 只回收本次写入的平台标记：若同一文档里已有其他写者（例如宿主外壳自己设置过），
         // 保留其值不动。
         if (wrotePlatform) delete documentElement.dataset.platform
+        if (wroteHost) delete documentElement.dataset.lexflowHost
+        if (wroteRuntime) delete documentElement.dataset.lexflowRuntime
         document.removeEventListener('click', onSessionRowClick, true)
         window.removeEventListener('resize', updateSessionTitles)
+        window.removeEventListener('lexflow:branding-change', onBrandingChange)
         style.remove()
         document.getElementById('lexflow-window-drag-bar')?.remove()
         delete window.__LEXFLOW_HOST_SURFACE_COMPATIBILITY__
@@ -919,6 +1035,16 @@ window.__ModuleLoader__.load({
 		* LG breakpoint); a manual toggle below it re-expands over the squeezed center
 		* (stores.ts narrowExpanded). */
 		const SIDEBAR_AUTO_COLLAPSE = 1024;
+		// 左侧边栏宽度与布局计算的唯一契约。此前默认值 260、拖拽下限 264、
+		// 列宽求解下限 240 分散在三处：第一次拖动就会从 260 跳到 264，随后
+		// 再也无法缩窄（2026-10-17 用户反馈“现在是最小宽度而且偏宽”）。
+		const SIDEBAR_MIN = 216;
+		const SIDEBAR_MAX = 420;
+		const SIDEBAR_DEFAULT_RATIO = 0.2;
+		const SIDEBAR_MIN_RATIO = 0.12;
+		const SIDEBAR_MAX_RATIO = 0.3;
+		// 右侧边栏打开时，左侧边栏仍可保持比例，但不得把中央对话列压到该下限以下。
+		const SIDEBAR_RIGHTBAR_CENTER_MIN = 520;
 		/**
 		* Clamp a panel width into its contract range.
 		* @param px - requested width.
@@ -928,6 +1054,26 @@ window.__ModuleLoader__.load({
 		*/
 		function clampWidth(px, min, max) {
 			return Math.min(max, Math.max(min, Math.round(px)));
+		}
+		/** 把持久化值收敛到侧边栏比例允许范围。 */
+		function normalizeSidebarRatio(value) {
+			const ratio = Number(value);
+			if (!Number.isFinite(ratio)) return SIDEBAR_DEFAULT_RATIO;
+			return Math.min(SIDEBAR_MAX_RATIO, Math.max(SIDEBAR_MIN_RATIO, ratio));
+		}
+		/** 当前窗口、右栏状态下侧边栏可达到的最大像素宽度。 */
+		function sidebarMaxWidth(viewport, rightbar) {
+			const ratioCap = Math.round(viewport * SIDEBAR_MAX_RATIO);
+			const rightbarCap = rightbar > 0 ? viewport - rightbar - SIDEBAR_RIGHTBAR_CENTER_MIN : SIDEBAR_MAX;
+			return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, ratioCap, rightbarCap));
+		}
+		/**
+		 * 将“窗口比例”解析为实际侧栏宽度。窗口缩放时宽度随之变化；
+		 * 手动拖拽只在当前窗口内写入新的比例。
+		 */
+		function resolveSidebarWidth(viewport, ratio, rightbar) {
+			const max = sidebarMaxWidth(viewport, rightbar);
+			return clampWidth(viewport * normalizeSidebarRatio(ratio), SIDEBAR_MIN, max);
 		}
 		/**
 		* Solve the three column widths for one viewport frame. Pure: no hysteresis —
@@ -946,7 +1092,7 @@ window.__ModuleLoader__.load({
 		* @returns resolved widths; rightbar 0 means the right track is closed, while a closed sidebar releases its full width to the center column.
 		*/
 		function computeColumns(viewport, sidebar, rightbar) {
-			const s = sidebar === 0 ? 0 : clampWidth(sidebar, 240, 420);
+			const s = sidebar === 0 ? 0 : clampWidth(sidebar, SIDEBAR_MIN, sidebarMaxWidth(viewport, rightbar));
 			// 宽屏下中央列保 400px；挤不下时中央列让位到 300px，让右栏（最低 240px）仍可拖窄，
 			// 而不是在半屏窗口直接把右栏解算为 0（拖手柄消失，用户无法缩小）。
 			const tight = viewport - s - 300;
@@ -1094,7 +1240,7 @@ window.__ModuleLoader__.load({
 					return WorkspacePage ? (0, react_jsx_runtime.jsx)(WorkspacePage, { page, document }) : (0, react_jsx_runtime.jsx)(LexFlowPlaceholder, { page, document });
 				}
 		/** The three-column frame (see module doc). */
-    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel, resetPanel, collapseRightbarPane }) {
+    function AppFrame({ useStore, useSessions, actions, renderSlot, SessionProvider, selectPanel, resetPanel, collapseRightbarPane, layoutSettings, persistSidebarRatio }) {
 			const [lexflowPage, setLexFlowPage] = (0, react.useState)("conversation");
 			const [lexflowDocument, setLexFlowDocument] = (0, react.useState)(null);
 			const [fullScreen, setFullScreen] = (0, react.useState)(() => Boolean(window.lexflowWindow?.isFullScreen?.()));
@@ -1124,6 +1270,8 @@ window.__ModuleLoader__.load({
 				return () => window.removeEventListener("lexflow:navigate", onNavigate);
 			}, [actions]);
 			const panels = useStore((s) => s);
+			const settingsSnapshot = react.useSyncExternalStore(layoutSettings.subscribe, layoutSettings.getSnapshot, layoutSettings.getSnapshot);
+			const persistedSidebarRatio = normalizeSidebarRatio(settingsSnapshot.value?.sidebarRatio);
 			const currentSessionId = useSessions((s) => s.current);
 			const lastSessionId = (0, react.useRef)(currentSessionId);
 			(0, react.useEffect)(() => {
@@ -1174,8 +1322,11 @@ window.__ModuleLoader__.load({
 				const timer = window.setTimeout(() => { collapseRightbarPane() }, 0);
 				return () => { window.clearTimeout(timer) };
 			}, [sidebarCollapsed, collapseRightbarPane]);
-			const sidebarPreference = sidebarCollapsed ? 0 : panels.sidebar === 0 ? 260 : panels.sidebar;
+			const sidebarPreference = sidebarCollapsed ? 0 : resolveSidebarWidth(viewport, panels.sidebarRatio, panels.rightbar);
 			const cols = computeColumns(viewport, sidebarPreference, panels.rightbar);
+			react.useEffect(() => {
+				actions.setSidebarRatio(persistedSidebarRatio, viewport, panels.rightbar);
+			}, [actions, panels.rightbar, persistedSidebarRatio, viewport]);
 			// 右侧边栏的 canShow 是"能力"语义：若能显示右栏是否放得下，与底座 dsh-client-ui-layout 的
 			// `canShow: normal.rightbar > 0` 一致（用偏好宽度求解，不看当前轨道）。若传当前轨道宽度
 			// （关闭时恒为 0），底座右栏内部的 `if (shown && !fullscreen && !canShow) setExpanded(false)`
@@ -1191,6 +1342,10 @@ window.__ModuleLoader__.load({
 			const onDragEnd = (0, react.useCallback)(() => {
 				setDragging(false);
 			}, []);
+			const onSidebarEnd = (0, react.useCallback)(() => {
+				setDragging(false);
+				if (typeof persistSidebarRatio === 'function') void persistSidebarRatio(panels.sidebarRatio);
+			}, [panels.sidebarRatio, persistSidebarRatio]);
 			const onSidebarStart = (0, react.useCallback)(() => {
 				sidebarBase.current = colsRef.current.sidebar;
 				setDragging(true);
@@ -1200,8 +1355,8 @@ window.__ModuleLoader__.load({
 				setDragging(true);
 			}, []);
 			const onSidebarDrag = (0, react.useCallback)((dx) => {
-				actions.setSidebar(sidebarBase.current + dx);
-			}, [actions]);
+				actions.setSidebar(sidebarBase.current + dx, viewport, panels.rightbar);
+			}, [actions, panels.rightbar, viewport]);
 			const onRightbarDrag = (0, react.useCallback)((dx) => {
 				actions.setRightbar(rightbarBase.current - dx);
 			}, [actions]);
@@ -1238,7 +1393,7 @@ window.__ModuleLoader__.load({
 						left: cols.sidebar,
 						onStart: onSidebarStart,
 						onDrag: onSidebarDrag,
-						onEnd: onDragEnd
+						onEnd: onSidebarEnd
 					}),
 					cols.rightbar > 0 && (0, react_jsx_runtime.jsx)(DragHandle, {
 						side: "rightbar",
@@ -1271,25 +1426,36 @@ window.__ModuleLoader__.load({
 		* flips the narrowExpanded override instead of the preference.
 		* @returns the store handle (spec + type + identity + factory in one).
 		*/
-		function createLayoutStore() {
+		function createLayoutStore(settings) {
+			const persistedRatio = normalizeSidebarRatio(settings?.getSnapshot?.().value?.sidebarRatio)
 			return (0, _lexflow_dsh_adapter.defineStore)({
 				init: () => ({
-					sidebar: 260,
+					sidebar: resolveSidebarWidth(typeof window === 'undefined' ? 1180 : window.innerWidth, persistedRatio, 0),
+					sidebarRatio: persistedRatio,
 					rightbar: 0,
 					rightbarFullscreen: false,
 					narrow: false,
 					narrowExpanded: false
 				}),
 				actions: {
-					setSidebar: (d, px) => {
-						d.sidebar = clampWidth(px, 264, 420);
+					setSidebar: (d, px, viewport, rightbar) => {
+						const width = clampWidth(px, SIDEBAR_MIN, sidebarMaxWidth(viewport, rightbar));
+						d.sidebar = width;
+						if (viewport > 0) d.sidebarRatio = width / viewport;
+					},
+					setSidebarRatio: (d, ratio, viewport, rightbar) => {
+						d.sidebarRatio = normalizeSidebarRatio(ratio);
+						// 保持用户的收起状态：窗口缩放或设置同步不得把已关闭的侧栏重新打开。
+						if (d.sidebar !== 0) d.sidebar = resolveSidebarWidth(viewport, d.sidebarRatio, rightbar);
 					},
 					setRightbar: (d, px) => {
 						d.rightbar = clampWidth(px, 300, 520);
 					},
 					toggleSidebar: (d) => {
 						if (d.narrow) d.narrowExpanded = !d.narrowExpanded;
-						else d.sidebar = d.sidebar === 0 ? 260 : 0;
+						else d.sidebar = d.sidebar === 0
+							? resolveSidebarWidth(typeof window === 'undefined' ? 1180 : window.innerWidth, d.sidebarRatio, d.rightbar)
+							: 0;
 					},
 					setNarrow: (d, narrow) => {
 						if (d.narrow === narrow) return;
@@ -1522,6 +1688,10 @@ window.__ModuleLoader__.load({
         const slots = runtime.ui.slots
         const theme = runtime.ui.theme
         const layout = new LayoutController();
+        // 侧边栏比例和外观偏好共用 lexflow-ui-shell 的配置表单：两者都写入
+        // profile 的 cordis.patch.yml，并由主进程的 readUserSettingsEntries()
+        // 在升级重写时保留。比例只在拖动结束时写一次，避免逐帧刷配置。
+        const layoutSettings = runtime.ui.settings.bind({ namespace: 'lexflow-ui-shell' })
 				runtime.lifecycle.effect(() => {
 					const disposeService = runtime.ui.provideLayout(layout);
 					// 底座右侧边栏与官方面板行都读取 root 标准席位里的面板信息。
@@ -1554,7 +1724,7 @@ window.__ModuleLoader__.load({
 							scope: "root"
 						}
 					},
-					store: createLayoutStore,
+					store: () => createLayoutStore(layoutSettings),
 					inject: (actions) => {
 						layout.attachPanels(actions);
 						// 面板路由由适配层的 LayoutController 提供，store 的动作集里没有它；
@@ -1565,6 +1735,8 @@ window.__ModuleLoader__.load({
 							// 左栏展开时收起底座右侧边栏：动作本身在模块级实现里读 layoutCtx 上的
 							// sidebarRight 服务，这里只把可调用入口交给 AppFrame（本作用域拿不到 ctx）。
 							collapseRightbarPane: () => { collapseSidebarRightImpl() },
+							layoutSettings,
+							persistSidebarRatio: ratio => layoutSettings.set('sidebarRatio', Math.round(normalizeSidebarRatio(ratio) * 1000) / 1000),
 						};
 					}
 				}, AppFrame);
@@ -1774,10 +1946,10 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 							children: (0, react_jsx_runtime.jsxs)("span", {
 								className: SidebarRoot_module_css_default.brandIdentity,
 								"aria-hidden": "true",
-								children: [false ? (0, react_jsx_runtime.jsx)("span", {
+								children: [(0, react_jsx_runtime.jsx)("span", {
 									className: SidebarRoot_module_css_default.brandMark,
 									children: renderSlot("sidebar.brand.mark", { size: 24 }, { fallback: (0, react_jsx_runtime.jsx)(_lexflow_dsh_adapter.FishLogo, { size: 24 }) })
-								}) : null, (0, react_jsx_runtime.jsx)("span", {
+								}), (0, react_jsx_runtime.jsx)("span", {
 									className: SidebarRoot_module_css_default.brandName,
 									children: renderSlot("sidebar.brand.name", {}, { fallback: (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [(0, react_jsx_runtime.jsx)("span", {
 										className: SidebarRoot_module_css_default.fallbackBrandName,
@@ -2145,7 +2317,7 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
       })
       const runtime = Object.freeze({
         contractVersion: CONTRACT_VERSION,
-        dshVersion: '0.2.0-rc.2',
+        dshVersion: '0.2.1-rc.2',
         lifecycle: Object.freeze({
           effect: (factory, label) => ctx.effect(factory, label),
           on: (name, listener) => typeof ctx.on === 'function' ? ctx.on(name, listener) : () => {},

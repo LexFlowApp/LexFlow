@@ -1,0 +1,18 @@
+# Replace the shipped interface with the brandless LexFlow appearance pack.
+- id: ui-brand-official
+  disabled: true
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-model-selection
+  disabled: true
+- insert:
+    - id: lexflow-adapter
+      name: '@lexflow/dsh-adapter'
+    - id: lexflow-ui-shell
+      name: '@lexflow/ui-shell'
+      config:
+        palette: deepseek
+        density: compact
+        branding: official
