@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 type FullScreenListener = (fullScreen: boolean) => void
+type LexFlowIdentity = 'lexflow' | 'deepseek'
 
 contextBridge.exposeInMainWorld('lexflowWindow', {
   isFullScreen: (): boolean => ipcRenderer.sendSync('lexflow:window-is-fullscreen') === true,
@@ -11,6 +12,8 @@ contextBridge.exposeInMainWorld('lexflowWindow', {
     ipcRenderer.on('lexflow:fullscreen-changed', handler)
     return () => ipcRenderer.removeListener('lexflow:fullscreen-changed', handler)
   },
+  getIdentity: (): Promise<LexFlowIdentity> => ipcRenderer.invoke('lexflow:identity-get'),
+  setIdentity: (identity: LexFlowIdentity): Promise<{ identity: LexFlowIdentity; name: string }> => ipcRenderer.invoke('lexflow:identity-set', identity),
 })
 
 // 官方桌面宿主标记。

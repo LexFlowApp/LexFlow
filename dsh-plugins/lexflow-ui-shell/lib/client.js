@@ -171,7 +171,10 @@ window.__ModuleLoader__.load({
       // 插槽内容，避免继续显示官方名称；桌面仍保留外层交通灯安全区。
       'html[data-lexflow-branding="none"] .lexflowSidebar_brandMark, html[data-lexflow-branding="none"] .lexflowSidebar_brandName, html[data-lexflow-branding="none"] .lexflowOfficialHeroMark { display: none !important; }',
       'html[data-lexflow-branding="none"] [class*="_headline"] [class*="_fishHitbox"] { display: none !important; }',
-      'html[data-lexflow-branding="official"] .lexflowOfficialSidebarName { font-size: 18px !important; font-weight: 600 !important; letter-spacing: 0 !important; white-space: nowrap !important; }',
+      // LexFlow 展开态保持纯文字；DeepSeek 展开态显示鲸鱼标记。收起态侧栏整列宽 0，
+      // 不再承担品牌识别，故这里的隐藏只针对展开态。
+      'html[data-lexflow-branding="lexflow"] .lexflowSidebarRoot:not(.lexflowSidebarCollapsed) .lexflowSidebar_brandMark { display: none !important; }',
+      'html[data-lexflow-branding="official"] .lexflowOfficialSidebarName { font-size: 16px !important; font-weight: 600 !important; letter-spacing: -.01em !important; white-space: nowrap !important; }',
       'html[data-lexflow-branding="official"] .lexflowOfficialHeroMark { flex: none !important; height: 34px !important; width: 34px !important; }',
       'html[data-lexflow-branding="official"] [class*="_headline"] { gap: 10px !important; }',
       // 官方标识模式下，非官方或独立客户端仍保留莱克斯流品牌；
@@ -577,10 +580,11 @@ window.__ModuleLoader__.load({
           'palette.deepseek': '蓝白',
           'density.compact': '紧凑',
           'density.comfortable': '舒适',
-          officialBranding: '官方标识',
-          officialBrandingDescription: '显示 DeepSeek 鲸鱼图标与产品名称',
-          'branding.lexflow': '隐藏',
-          'branding.official': '显示',
+          officialBranding: '应用标识',
+          officialBrandingDescription: '切换侧栏标识、窗口标题和程序坞图标',
+          'branding.lexflow': 'LexFlow',
+          'branding.official': 'DeepSeek Harness',
+          'branding.none': '无标识',
         },
         en: {
           title: 'Interface',
@@ -592,10 +596,11 @@ window.__ModuleLoader__.load({
           'palette.deepseek': 'Blue & white',
           'density.compact': 'Compact',
           'density.comfortable': 'Comfortable',
-          officialBranding: 'Official identity',
-          officialBrandingDescription: 'Show the DeepSeek whale mark and product name',
-          'branding.lexflow': 'Hidden',
-          'branding.official': 'Shown',
+          officialBranding: 'App identity',
+          officialBrandingDescription: 'Switch the sidebar mark, window title and Dock icon',
+          'branding.lexflow': 'LexFlow',
+          'branding.official': 'DeepSeek Harness',
+          'branding.none': 'No mark',
         }
       }
 
@@ -610,7 +615,7 @@ window.__ModuleLoader__.load({
           density: value?.density === 'comfortable' ? 'comfortable' : DEFAULT_UI_PREFERENCES.density,
           branding: value?.branding === 'none'
             ? 'none'
-            : value?.branding === 'official' ? 'official' : DEFAULT_UI_PREFERENCES.branding,
+            : value?.branding === 'official' || value?.branding === 'deepseek' ? 'official' : DEFAULT_UI_PREFERENCES.branding,
         }
       }
 
@@ -673,10 +678,14 @@ window.__ModuleLoader__.load({
               ['compact', t('density.compact')],
               ['comfortable', t('density.comfortable')]
             ]),
-            preferenceRow('branding', t('officialBranding'), t('officialBrandingDescription'), [
-              ['none', t('branding.lexflow')],
-              ['official', t('branding.official')]
-            ])
+            preferenceRow('branding', t('officialBranding'), t('officialBrandingDescription'), (() => {
+              const options = [
+                ['lexflow', t('branding.lexflow')],
+                ['official', t('branding.official')]
+              ]
+              if (preferences.branding === 'none') options.push(['none', t('branding.none')])
+              return options
+            })())
           ]
         })
       }
@@ -695,6 +704,8 @@ window.__ModuleLoader__.load({
             document.documentElement.dataset.lexflowDensity = preferences.density
             document.documentElement.dataset.lexflowBranding = preferences.branding
             window.dispatchEvent(new CustomEvent('lexflow:branding-change', { detail: { branding: preferences.branding } }))
+            const identity = preferences.branding === 'official' ? 'deepseek' : 'lexflow'
+            if (window.lexflowWindow?.setIdentity) void window.lexflowWindow.setIdentity(identity).catch(() => {})
             disposeOverride()
             disposeOverride = theme.overrideTokens('lexflow-appearance', PALETTE_THEMES[preferences.palette])
           }

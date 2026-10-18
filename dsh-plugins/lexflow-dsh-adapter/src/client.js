@@ -281,6 +281,17 @@ window.__ModuleLoader__.load({
       // 会覆盖底座网格，LexFlow 自绘的标题/页签/工具条排布依赖 flex 顺序（titleCluster/tabs/headerUtilities/corner
       // 的 order 1-4），改回网格会打乱既有排布，故保留覆盖。
       'header[data-window-drag] { align-items: center !important; box-sizing: border-box !important; display: flex !important; flex-wrap: nowrap !important; flex-direction: row !important; gap: 12px !important; min-height: 48px !important; padding: 18px 28px 0 !important; writing-mode: horizontal-tb !important; }',
+      // 上面的对话头部形态不得套到官方一级页面。插件管理页的 pageHead 也带
+      // data-window-drag；若继承 48px 高度与 10px 顶部内边距，底层原本预留的 28px
+      // 标题留白会被压掉，标题贴住线上边（2026-10-18 用户截图反馈）。这些页面
+      // 不是对话会话根，恢复为底座自身的纵向排布即可，同时保留横向内边距给
+      // 收起态的安全区规则使用。
+      ':is([class*="_page"]:has(> [class*="_pageHead"])) > header[class*="_pageHead"] { align-items: flex-start !important; box-sizing: border-box !important; display: flex !important; flex-wrap: wrap !important; flex-direction: row !important; flex: 0 0 auto !important; height: calc(52px + 28px) !important; min-height: calc(52px + 28px) !important; padding-left: 0 !important; padding-right: 0 !important; padding-top: 28px !important; writing-mode: horizontal-tb !important; }',
+      // 插件管理页的内容列与页头同一宽度，并由列表自身的左侧图标列形成缩进。
+      // 页头不应既包含“标题对齐”又承担外层横向留白，否则会与内容左缘错开并显得
+      // 整页偏窄。这里只统一可读宽度；横向页边距继续由底座页面容器提供。
+      ':is([class*="_page"]:has(> [class*="_pageHead"])) { --lexflow-page-reading-width: min(1120px, 100%) !important; }',
+      ':is([class*="_page"]:has(> [class*="_pageHead"])) > * { max-width: var(--lexflow-page-reading-width) !important; }',
       // 0.1.7 新增 headerLeading（插槽 conversation.header.leading，0.1.7 底座自身无注册者）。
       // 它原本靠网格 grid-area:1/1 定位；LexFlow 改为 flex 后它会成为普通 flex 项，
       // 与 LexFlow 自绘的头部控件抢位。LexFlow 已有自己的侧栏开关与安全区方案，故隐藏它。
@@ -701,7 +712,12 @@ window.__ModuleLoader__.load({
       // 拖拽条必须比侧栏开关的 top 更浅，否则开关上半截落进原生拖拽区、点击被窗口拖动吞掉。
       // 拖拽条高度由交通灯中心线变量推导：官方宿主 24px → 10px，独立应用 34px → 20px。
       // 两种形态都正好止于 28px 开关上缘，与开关、标题行共用同一条中心线。
-      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: calc(var(--lexflow-traffic-light-center-y, 24px) - 14px); left: 0; right: 0; top: 0; position: fixed; z-index: 5; }',
+      // 首页顶部的可拖动高度此前只有 10px（交通灯圆心减 14px），鼠标很难稳定命中。
+      // 拖拽条扩到 28px，但左栏开关和右侧边栏按钮自身声明 no-drag；原生层以光标下最上层
+      // 区域的 app-region 判定，因此这两个控件仍能点击，只把两者之间及侧栏下方的空白变成拖拽区。
+      // 拖拽条 `pointer-events:none`，不会截获网页点击；它的 drag 区域是透明的壳层。
+      '#lexflow-window-drag-bar { -webkit-app-region: drag !important; height: 28px; left: 130px; right: 52px; top: 0; position: fixed; z-index: 4; pointer-events: none; }',
+      '.lexflowTopSidebarToggle, header[data-window-drag] button, header[data-window-drag] [role="button"], header[data-window-drag] input, header[data-window-drag] textarea { -webkit-app-region: no-drag !important; }',
       'div[class*="logoRow"] button { -webkit-app-region: no-drag; }',
       // 0.1.5 把封面标题容纳类从 headlineText 改为 titleGroup（标题与“预览版”标签同层）。
       // 选择器同时保留旧类名，底座再次改动时不影响旧分支的可读性。
@@ -711,6 +727,13 @@ window.__ModuleLoader__.load({
     function installHostSurfaceCompatibility() {
       if (typeof document === 'undefined' || typeof window === 'undefined') return () => {}
       if (window.__LEXFLOW_HOST_SURFACE_COMPATIBILITY__) return () => {}
+      // Desktop DSH remembers window geometry across launches in its own store. The
+      // appearance package defines LexFlow's 1180x760 startup canvas, so restore that
+      // size once per renderer load. The guard prevents a resize loop; the adapter
+      // never touches a manually resized window after startup.
+      if ('dshDesktop' in window && (window.outerWidth !== 1180 || window.outerHeight !== 760)) {
+        requestAnimationFrame(() => { try { window.resizeTo(1180, 760) } catch { /* browser runtimes may disallow resizeTo */ } })
+      }
       if (!(window.__LEXFLOW_MODEL_VISIBILITY__ instanceof Set)) window.__LEXFLOW_MODEL_VISIBILITY__ = new Set()
       const style = document.createElement('style')
       style.dataset.lexflowHostCompatibility = 'true'
@@ -1654,7 +1677,7 @@ window.__ModuleLoader__.load({
 				const body = document.body;
 				if (scheme === "dark") body.setAttribute(DARK_ATTRIBUTE, "");
 				else body.removeAttribute(DARK_ATTRIBUTE);
-				const fontSize = Number.isFinite(snapshot.fontSize) ? snapshot.fontSize : 14;
+				const fontSize = Number.isFinite(snapshot.fontSizes?.text) ? snapshot.fontSizes.text : 14;
 				body.style.setProperty("--dsh-content-font-size", `${fontSize}px`);
 				body.style.setProperty("--lexflow-content-font-size", `${fontSize}px`);
 				body.style.setProperty("--lexflow-content-font-delta", `${fontSize - 14}px`);
@@ -1948,14 +1971,15 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 						className: SidebarRoot_module_css_default.logoRow,
 						children: [wide && (0, react_jsx_runtime.jsx)("div", {
 							className: clsx(SidebarRoot_module_css_default.brand, SidebarRoot_module_css_default.wide),
-							"aria-label": "LexFlow",
+							"aria-label": "品牌标识",
 							onClick: void 0,
 							children: (0, react_jsx_runtime.jsxs)("span", {
 								className: SidebarRoot_module_css_default.brandIdentity,
 								"aria-hidden": "true",
-								// 展开态按产品基线只显示文字品牌；收起态才以河狸图标作为窄栏识别。
-								// 品牌图标插槽仍保留给收起态，避免外观包与官方宿主出现两套侧栏。
-								children: [!wide && (0, react_jsx_runtime.jsx)("span", {
+								// 品牌标记始终渲染，由界面层按标识与展开状态控制显隐：
+								// LexFlow 展开态只显示文字；DeepSeek 展开态显示鲸鱼。
+								// 收起态侧栏宽度为 0，标记不会在实际界面中露出。
+								children: [(0, react_jsx_runtime.jsx)("span", {
 									className: SidebarRoot_module_css_default.brandMark,
 									children: renderSlot("sidebar.brand.mark", { size: 24 }, { fallback: (0, react_jsx_runtime.jsx)(_lexflow_dsh_adapter.FishLogo, { size: 24 }) })
 								}), (0, react_jsx_runtime.jsx)("span", {

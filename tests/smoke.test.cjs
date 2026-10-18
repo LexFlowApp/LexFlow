@@ -11,7 +11,7 @@ test('LexFlow package identity is independent', () => {
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
   assert.equal(packageJson.name, 'lexflow-legal')
   assert.equal(packageJson.productName, 'LexFlow')
-  assert.equal(packageJson.version, '0.7.3')
+  assert.equal(packageJson.version, '0.7.4')
   assert.equal(packageJson.build, undefined)
   const forgeConfig = fs.readFileSync(path.join(root, 'forge.config.cjs'), 'utf8')
   assert.match(forgeConfig, /appBundleId: 'com\.lexflow\.desktop'/)
@@ -299,15 +299,23 @@ test('LexFlow interface preferences expose warm paper, blue-white, compact and c
   assert.match(shell, /lexflow:branding-change/u)
   assert.match(shell, /theme\.overrideTokens\('lexflow-appearance', PALETTE_THEMES\[preferences\.palette\]\)/u)
   assert.match(adapter, /const brandless = branding === 'none'/u)
-  assert.match(shell, /'branding\.official': '显示'/u)
-  assert.match(shell, /'branding\.lexflow': '隐藏'/u)
+  assert.match(shell, /'branding\.official': 'DeepSeek Harness'/u)
+  assert.match(shell, /'branding\.lexflow': 'LexFlow'/u)
+  assert.match(shell, /官方标识|应用标识/u)
+  assert.match(shell, /setIdentity\(identity\)/u)
+  assert.match(main, /lexflow:identity-set/u)
+  assert.match(main, /resources', 'identity'/u)
   assert.match(shell, /FishLogo, Menu, IconChevronDownOutline14/u)
   assert.match(shell, /children: 'DeepSeek Harness'/u)
   assert.match(shell, /useBranding\(\) === 'official' \? jsx\(FishLogo/u)
   assert.match(adapter, /const officialBranding = branding === 'official'/u)
-  // 展开态只显示“LexFlow”文字；河狸图标只用于收起态窄栏，避免侧栏顶部多出图标。
-  assert.match(adapter, /children: \[!wide && \(0, react_jsx_runtime\.jsx\)\("span", \{\n\s*className: SidebarRoot_module_css_default\.brandMark/u)
-  assert.match(shell, /\['none', t\('branding\.lexflow'\)\]/u)
+  // LexFlow 展开态只显示文字；DeepSeek 展开态显示鲸鱼标记。标记始终渲染，
+  // 由界面层的 branding 选择器控制显隐。
+  assert.match(adapter, /children: \[\(0, react_jsx_runtime\.jsx\)\("span", \{\n\s*className: SidebarRoot_module_css_default\.brandMark/u)
+  assert.match(shell, /data-lexflow-branding="lexflow"[^\n]*\.lexflowSidebar_brandMark[^\n]*display: none/u)
+  assert.match(shell, /\['lexflow', t\('branding\.lexflow'\)\]/u)
+  assert.match(shell, /\['official', t\('branding\.official'\)\]/u)
+  assert.match(shell, /setIdentity\(identity\)/u)
   assert.match(shell, /window\.addEventListener\('lexflow:branding-change', sync\)/u)
   assert.match(shell, /html\[data-lexflow-branding="none"\][^\n]*_fishHitbox[^\n]*display: none/u)
   assert.match(adapter, /dataset\.lexflowHost = 'dshDesktop' in window \? 'desktop' : 'web'/u)
@@ -331,6 +339,24 @@ test('LexFlow interface preferences expose warm paper, blue-white, compact and c
   assert.doesNotMatch(adapter, /\[class\*="markdown_(?:kcgor|kj4sz)"\] p/u)
   assert.match(adapter, /data-lexflow-density="compact"/u)
   assert.match(adapter, /var\(--lexflow-flowing-start\)/u)
+})
+
+test('application identity switches Dock icon, window title and hero slogan', () => {
+  const main = fs.readFileSync(path.join(root, 'src', 'main', 'index.ts'), 'utf8')
+  const preload = fs.readFileSync(path.join(root, 'src', 'preload', 'index.ts'), 'utf8')
+  const shell = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-ui-shell', 'src', 'client.js'), 'utf8')
+  const adapter = fs.readFileSync(path.join(root, 'dsh-plugins', 'lexflow-dsh-adapter', 'src', 'client.js'), 'utf8')
+  assert.match(main, /type LexFlowIdentity = 'lexflow' \| 'deepseek'/u)
+  assert.match(main, /app\.dock\.setIcon\(icon\)/u)
+  assert.match(main, /app\.setAboutPanelOptions/u)
+  assert.match(main, /readPersistedIdentity/u)
+  assert.match(preload, /ipcRenderer\.invoke\('lexflow:identity-set'/u)
+  assert.match(shell, /'branding\.official': 'DeepSeek Harness'/u)
+  assert.match(shell, /setIdentity\(identity\)/u)
+  assert.match(adapter, /headline\.textContent = '探索未至之境'/u)
+  assert.match(adapter, /headline\.textContent = 'Everything is Workflow'/u)
+  assert.ok(fs.existsSync(path.join(root, 'resources', 'identity', 'deepseek.png')))
+  assert.ok(fs.existsSync(path.join(root, 'resources', 'identity', 'lexflow.png')))
 })
 
 test('sidebar width uses proportional bounds and widens the transcript without overriding manual width', () => {
@@ -388,7 +414,8 @@ test('community bundles separate the appearance shell from the workspace extensi
     assert.ok(archivePackage.dependencies[dependency], `档案室缺少跨客户端依赖 ${dependency}`)
   }
   assert.equal(archivePackage.optionalDependencies['@lexflow/community-assets'], '0.1.0-alpha.1')
-  assert.equal(workspacePackage.dependencies['@lexflow/community-assets'], '0.1.0-alpha.1')
+  // 本地联调时依赖会写成 file: 指向打包 tarball；发布包仍使用版本号。
+  assert.match(workspacePackage.dependencies['@lexflow/community-assets'], /^(?:0\.1\.0-alpha\.1|file:.*lexflow-community-assets-0\.1\.0-alpha\.1\.tgz)$/u)
 
   const archive = fs.readFileSync(path.join(pluginRoot, 'lexflow-archive', 'src', 'index.js'), 'utf8')
   assert.match(archive, /resolve\('@lexflow\/community-assets\/package\.json'\)/u)
@@ -803,6 +830,9 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   assert.match(adapter, /header\[data-window-drag\].*padding: 18px 28px 0 !important/)
   assert.match(adapter, /writing-mode: horizontal-tb !important/)
   assert.match(adapter, /dsh-content-font-size/)
+  // 字号设置来自底座 theme 快照的 fontSizes.text；旧实现误读不存在的
+  // snapshot.fontSize，导致设置页改字号后正文仍固定 14px。
+  assert.match(adapter, /snapshot\.fontSizes\?\.text/u)
   assert.match(adapter, /contributionRegistry/)
   // 紧凑密度层（0.1.5 现行锚点）：行高 22px、流间距 12px、输入框圆角 14px、
   // 气泡圆角 14px。失效的 0.1.4 类名不得再出现在适配层。
@@ -854,7 +884,11 @@ test('LexFlow typography and sidebar safety treatments are locally packaged', ()
   // 拖拽条高度必须不超过开关的 top（20px），否则二者纵向重叠、开关被判成拖拽区而点不动。
   // 实测：高度 22px 时开关 y=20~21 命中拖拽条 drag、y=22 起才命中按钮 no-drag，
   // 表现为"左侧栏开关按一下之后再也打不开"（用户 2026-10-09 反馈）。
-  assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important; height: calc\(var\(--lexflow-traffic-light-center-y, 24px\) - 14px\);/u)
+  assert.match(adapter, /#lexflow-window-drag-bar \{ -webkit-app-region: drag !important; height: 28px;/u)
+  // 拖拽壳层必须避开右侧边栏按钮的整个矩形；否则 macOS 原生层只从按钮右下角响应点击。
+  assert.match(adapter, /#lexflow-window-drag-bar \{[^}]*left: 130px; right: 52px;/u)
+  assert.match(adapter, /#lexflow-window-drag-bar \{[^}]*pointer-events: none;/u)
+  assert.match(adapter, /\.lexflowTopSidebarToggle, header\[data-window-drag\] button[^']*-webkit-app-region: no-drag !important/u)
   // 不得改用 clip-path 挖洞：它能否影响原生层 app-region 判定未经实测，不采用未验证机制。
   assert.doesNotMatch(adapter, /#lexflow-window-drag-bar \{[^}]*clip-path/u)
   // LexFlow 从未在 <html> 上设置 data-fullscreen（它设在 frame 元素上），
@@ -1106,6 +1140,13 @@ test('官方账号与 Agent 预设入口按 0.6.1 方案启用', () => {
   // 用属性选择器适配哈希变化，并按页头结构限定作用范围。
   assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_pageHead"\]\)/u)
   assert.match(adapter, /\[data-sidebar-collapsed\] \[class\*="_page"\]:has\(> \[class\*="_detailTop"\]\)/u)
+  // 插件页的 pageHead 也带 data-window-drag，但不能因此继承对话头部的 48px 高度。
+  // 恢复底座自己的 28px 标题留白，并按主题 token 放大阅读宽度。
+  assert.match(adapter, /:is\(\[class\*="_page"\]:has\(> \[class\*="_pageHead"\]\)\) > header\[class\*="_pageHead"\] \{ align-items: flex-start !important;[^']*height: calc\(52px \+ 28px\) !important;[^']*padding-left: 0 !important;[^']*padding-top: 28px !important/u)
+  assert.match(adapter, /--lexflow-page-reading-width: min\(1120px, 100%\) !important/u)
+  assert.match(adapter, /'dshDesktop' in window && \(window\.outerWidth !== 1180 \|\| window\.outerHeight !== 760\)/u)
+  assert.match(adapter, /window\.resizeTo\(1180, 760\)/u)
+  assert.match(adapter, /\$\{CONVERSATION_ROOT_SELECTOR\} header\[data-window-drag\] \{ position: relative !important; z-index: 3 !important; \}/u)
   // 面板页的 padding-left 同样需过渡，否则展开时与对话页标题出现同款瞬间重叠。
   assert.match(adapter, /header\[data-window-drag\], \[class\*="_page"\] \{ transition: padding-left var\(--ds-transition-duration-slow/u)
   // 一级页面（工作流／档案室／工作台／预览）的返回箭头需 left 过渡：

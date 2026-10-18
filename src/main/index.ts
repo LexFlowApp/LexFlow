@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, session, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, promises as fs, readdirSync, renameSync, rmdirSync, statSync } from 'node:fs'
 import path from 'node:path'
@@ -33,6 +33,51 @@ let dshStartPromise: Promise<string | undefined> | undefined
 let windowCreationPromise: Promise<BrowserWindow> | undefined
 let isQuitting = false
 const DSH_STARTUP_TIMEOUT_MS = 180_000
+
+type LexFlowIdentity = 'lexflow' | 'deepseek'
+let currentIdentity: LexFlowIdentity = 'lexflow'
+
+function identityName(identity: LexFlowIdentity): string {
+  return identity === 'deepseek' ? 'DeepSeek Harness' : 'LexFlow'
+}
+
+function identityIconPath(identity: LexFlowIdentity): string {
+  return path.join(app.getAppPath(), 'resources', 'identity', `${identity}.png`)
+}
+
+/**
+ * 从已保存的 profile 补丁中读取应用标识。
+ *
+ * 这里只读取一个稳定的标量，不解析整份 YAML：补丁文件由底座的设置服务写入，
+ * 结构可能随版本变化，但 `branding:` 这一行始终是扁平配置。`official` 是
+ * 兼容旧配置的值，语义等同于 `deepseek`。读取失败时回到 LexFlow，保证应用
+ * 总能启动。
+ */
+async function readPersistedIdentity(): Promise<LexFlowIdentity> {
+  try {
+    const patch = await fs.readFile(path.join(paths.runtimeRoot, 'profiles', 'web', 'cordis.patch.yml'), 'utf8')
+    const match = /(?:^|\n)\s*branding\s*:\s*['"]?(lexflow|official|deepseek|none)\b/u.exec(patch)
+    return match?.[1] === 'official' || match?.[1] === 'deepseek' ? 'deepseek' : 'lexflow'
+  } catch {
+    return 'lexflow'
+  }
+}
+
+/**
+ * 应用当前标识到所有由主进程绘制的界面：程序坞图标、窗口标题、应用菜单
+ * 与“关于”面板。页面内的文字和侧栏品牌由渲染进程的 branding 配置同步。
+ */
+function applyIdentity(identity: LexFlowIdentity): void {
+  currentIdentity = identity
+  const name = identityName(identity)
+  if (process.platform === 'darwin' && app.dock) {
+    const icon = nativeImage.createFromPath(identityIconPath(identity))
+    if (!icon.isEmpty()) app.dock.setIcon(icon)
+  }
+  app.setAboutPanelOptions({ applicationName: name, applicationVersion: app.getVersion() })
+  installMenu(identity)
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setTitle(name)
+}
 
 function lexflowPluginSourceRoot(): string {
   return path.join(app.getAppPath(), 'dsh-plugins')
@@ -598,6 +643,12 @@ function installWindowIpc(): void {
   ipcMain.on('lexflow:window-is-fullscreen', (event) => {
     event.returnValue = mainWindow?.isFullScreen() ?? false
   })
+  ipcMain.handle('lexflow:identity-get', () => currentIdentity)
+  ipcMain.handle('lexflow:identity-set', (_event, identity: unknown) => {
+    if (identity !== 'lexflow' && identity !== 'deepseek') throw new Error('未知的应用标识。')
+    applyIdentity(identity)
+    return { identity, name: identityName(identity) }
+  })
 }
 
 
@@ -605,7 +656,7 @@ async function createWindow(): Promise<BrowserWindow> {
   if (isQuitting) throw new Error('LexFlow 正在退出。')
   const serviceUrl = await startDsh()
   if (isQuitting) throw new Error('LexFlow 正在退出。')
-  const win = new BrowserWindow({ width: 1180, height: 760, minWidth: 760, minHeight: 640, show: false, title: 'LexFlow', titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 27 }, backgroundColor: '#f8f9fb', webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false, preload: path.join(currentDirectory, '../preload/index.mjs') } })
+  const win = new BrowserWindow({ width: 1180, height: 760, minWidth: 760, minHeight: 640, show: false, title: identityName(currentIdentity), titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 27 }, backgroundColor: '#f8f9fb', webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: false, preload: path.join(currentDirectory, '../preload/index.mjs') } })
   mainWindow = win
   win.on('enter-full-screen', notifyFullscreenState)
   win.on('leave-full-screen', notifyFullscreenState)
@@ -626,8 +677,8 @@ async function createWindow(): Promise<BrowserWindow> {
     )
   })
   win.center()
-  // 阻止底层网页把窗口标题改回 DeepSeek Harness。
-  win.on('page-title-updated', (event) => { event.preventDefault(); win.setTitle('LexFlow') })
+  // 页面标题由标识决定；阻止底层网页把标题改回固定值。
+  win.on('page-title-updated', (event) => { event.preventDefault(); win.setTitle(identityName(currentIdentity)) })
   win.once('ready-to-show', () => { if (!isQuitting && !win.isDestroyed()) win.show() })
   win.on('close', (event) => {
     if (process.platform !== 'darwin' || isQuitting) return
@@ -650,8 +701,19 @@ async function ensureMainWindow(): Promise<BrowserWindow> {
   finally { if (windowCreationPromise === pending) windowCreationPromise = undefined }
 }
 
-function installMenu(): void {
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'LexFlow', submenu: [{ role: 'about' }, { type: 'separator' }, { label: '打开 LexFlow 工作目录', click: () => void shell.openPath(paths.workspaceRoot) }, { label: '打开 LexFlow 数据目录', click: () => void shell.openPath(paths.appDataRoot) }, { type: 'separator' }, { role: 'quit' }] }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }]))
+function installMenu(identity: LexFlowIdentity = currentIdentity): void {
+  const name = identityName(identity)
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{
+    label: name,
+    submenu: [
+      { role: 'about', label: `关于 ${name}` },
+      { type: 'separator' },
+      { label: '打开工作目录', click: () => void shell.openPath(paths.workspaceRoot) },
+      { label: '打开数据目录', click: () => void shell.openPath(paths.appDataRoot) },
+      { type: 'separator' },
+      { role: 'quit', label: `退出 ${name}` },
+    ],
+  }, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }]))
 }
 
 app.whenReady().then(async () => {
@@ -668,7 +730,8 @@ app.whenReady().then(async () => {
   await ensureUserAgent()
   await ensureProjectionCacheCompatibility()
   await pruneStaleDshAuthCookies()
-  installMenu()
+  currentIdentity = await readPersistedIdentity()
+  applyIdentity(currentIdentity)
   installWindowIpc()
   await ensureMainWindow()
 }).catch((error) => { dialog.showErrorBox('LexFlow 启动失败', error instanceof Error ? error.message : String(error)); app.quit() })
