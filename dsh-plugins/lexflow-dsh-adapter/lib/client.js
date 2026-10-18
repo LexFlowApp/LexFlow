@@ -233,7 +233,7 @@ window.__ModuleLoader__.load({
     // 设置-通用页版本行显示的产品版本与底座版本，由打包脚本按实际 package.json 注入
     // （识别下面的单引号占位符并替换为真实版本）。源码直载时占位符不含版本信息，
     // 渲染处据此跳过该行，不会写出错误版本号。
-    const LEXFLOW_PRODUCT_VERSION = "0.7.2"
+    const LEXFLOW_PRODUCT_VERSION = "0.7.3"
     const LEXFLOW_DSH_VERSION = "0.2.1-rc.2"
     // 底座网页版与桌面版的消息区哈希前缀不同（wSkVaW_/hWmORq_/EvIC1a_ 与
     // ST7X_W_/gKv1-q_/icaHSq_），但语义后缀一致。以下选择器一律以语义后缀为锚，
@@ -408,12 +408,19 @@ window.__ModuleLoader__.load({
       '[data-lexflow-layout="frame"]:has([data-sidebar-right-panel="fullscreen"][data-sidebar-right-open]) [data-lexflow-layout="sidebar"] { pointer-events: none !important; }',
       '[data-lexflow-layout="center"] > *, [data-lexflow-layout="center"] [data-slot="conversation.session"] { max-width: 100%; min-width: 0; }',
       `${CONVERSATION_ROOT_SELECTOR} { isolation: isolate; overflow: hidden !important; position: relative; }`,
-      // 渐变只承担标题栏背板与顶部收边，不再向正文深处铺开：底座已有
-      // `[data-conversation-scroll]` 的 56px 蒙版，若再叠 104px、96% 不透明的底色，
-      // 第一行正文会被洗到几乎不可读（2026-10-17 与独立客户端对照后收窄）。
-      `${CONVERSATION_ROOT_SELECTOR}::before { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-bg-base) 96%, transparent) 0%, color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent) 54%, transparent 100%); content: ""; height: 56px; inset: 0 0 auto; pointer-events: none; position: absolute; z-index: 2; }`,
-      `${CONVERSATION_ROOT_SELECTOR} > * { position: relative; z-index: 3; }`,
-      '[data-conversation-scroll] { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 56px); mask-image: linear-gradient(180deg, transparent 0, #000 56px); }',
+      // 顶部背板只保留一条连续渐变：前 30px 为实色，随后逐步透明，不再使用
+      // backdrop-filter（模糊叠加会在标题下方形成一条可见的模糊带，2026-10-18 反馈）。
+      // 滚动区的通用蒙版同时关闭，避免两处渐隐叠成色带。
+      `${CONVERSATION_ROOT_SELECTOR}::before { background: linear-gradient(180deg, var(--dsw-alias-bg-base) 0px, var(--dsw-alias-bg-base) 30px, color-mix(in srgb, var(--dsw-alias-bg-base) 78%, transparent) 42px, transparent 48px); content: ""; height: 48px; inset: 0 0 auto; pointer-events: none; position: absolute; z-index: 2; }`,
+      // 标题栏必须高于背板。底座把 header 包在 display:contents 的插槽层里——该层
+      // 不生成盒子，写在它身上的 z-index 完全不生效，header 自身只有 z-index: 1，
+      // 于是整条标题栏（含右侧边栏开关）被 z-index: 2 的背板盖住
+      //（2026-10-18 反馈：右侧边栏看不到、顶部直边）。层级必须落在 header 本体上。
+      `${CONVERSATION_ROOT_SELECTOR} header[data-window-drag] { position: relative !important; z-index: 3 !important; }`,
+      // 滚动正文在标题下缘留 18px 极短渐隐：既消除内容被硬切的直边，又不会像此前
+      // 56px 蒙版那样在标题下方形成一整条可见的模糊带（2026-10-18 两次反馈的折中）。
+      // 静态首屏正文距标题下缘约 30px 以上，该渐隐不会触及第一段文字。
+      '[data-conversation-scroll] { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 18px); mask-image: linear-gradient(180deg, transparent 0, #000 18px); }',
       // 0.1.7 会话根的 data-phase 只发 hero/settling/active（"inert" 仅出现在输入区自身的 data-phase 上，
       // 且不在 [data-conversation-scroll] 的祖先链上），故 inert 分支在 0.1.7 实为空转；
       // 保留该旧值不影响任何 0.1.7 行为，也便于 0.1.5 回滚。
@@ -1946,7 +1953,9 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
 							children: (0, react_jsx_runtime.jsxs)("span", {
 								className: SidebarRoot_module_css_default.brandIdentity,
 								"aria-hidden": "true",
-								children: [(0, react_jsx_runtime.jsx)("span", {
+								// 展开态按产品基线只显示文字品牌；收起态才以河狸图标作为窄栏识别。
+								// 品牌图标插槽仍保留给收起态，避免外观包与官方宿主出现两套侧栏。
+								children: [!wide && (0, react_jsx_runtime.jsx)("span", {
 									className: SidebarRoot_module_css_default.brandMark,
 									children: renderSlot("sidebar.brand.mark", { size: 24 }, { fallback: (0, react_jsx_runtime.jsx)(_lexflow_dsh_adapter.FishLogo, { size: 24 }) })
 								}), (0, react_jsx_runtime.jsx)("span", {
