@@ -2125,6 +2125,79 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
       sidebar.apply(runtime)
     }
 
+    /**
+     * 会话费用行：在底座「Token 用量」弹窗末尾追加「费用 / ¥x.xx」一行。
+     *
+     * 该弹窗由底座 ui-chat 内部渲染，没有对外插槽，因此行本身以 portal 追加进它
+     * 的明细列表 `[data-session-stats-usage]`（底座给该列表的语义标记，不是哈希
+     * 类名）；插入的是普通 dt/dd，直接继承弹窗既有的栅格、字号与对齐规则，不需要
+     * 另写样式。金额来自宿主投影 `lexflowCost`，经插槽 props 的 useProjection 读取。
+     *
+     * 兼容点：`[data-session-stats-usage]` 归适配层维护。底座若改掉该标记，本行
+     * 静默消失，不影响弹窗自身与界面其余部分。
+     */
+    function installSessionCostRow(ctx, slotsService) {
+      if (typeof slotsService?.inject !== 'function' || typeof slotsService?.register !== 'function') return
+      const React = require('react')
+      const { jsx, jsxs } = require('react/jsx-runtime')
+      const { createPortal } = require('react-dom')
+      const DIALOG_DETAILS = '[data-session-stats-usage]'
+
+      const formatCost = micros => {
+        const value = Number(micros) / 1e6
+        if (!Number.isFinite(value) || value <= 0) return '¥0.00'
+        if (value >= 0.01) return `¥${value.toFixed(2)}`
+        if (value >= 0.0001) return `¥${value.toFixed(4)}`
+        return '¥<0.0001'
+      }
+
+      function SessionCostRow({ useProjection }) {
+        const [host, setHost] = React.useState(null)
+        // 钩子调用必须无条件：底座若换了投影表名，这里只丢弃金额，不得让整段界面抛错。
+        let view
+        try {
+          view = useProjection('lexflowCost')
+        } catch {
+          view = undefined
+        }
+        React.useEffect(() => {
+          let frame = 0
+          const sync = () => {
+            frame = 0
+            const next = document.querySelector(DIALOG_DETAILS)
+            setHost(previous => (previous === next ? previous : next))
+          }
+          const schedule = () => { if (frame === 0) frame = window.requestAnimationFrame(sync) }
+          sync()
+          const observer = new MutationObserver(schedule)
+          observer.observe(document.body, { childList: true, subtree: true })
+          return () => {
+            observer.disconnect()
+            if (frame !== 0) window.cancelAnimationFrame(frame)
+          }
+        }, [])
+        if (host === null) return null
+        const unknown = view?.hasUnknown === true
+        const title = unknown
+          ? '本会话含无官方价目的模型，费用只统计 DeepSeek 官方路由'
+          : '按 DeepSeek 官方峰谷价估算，以官方账单为准'
+        return createPortal(jsxs(React.Fragment, { children: [
+          jsx('dt', { title, children: '费用' }),
+          jsx('dd', { title, children: unknown ? '—' : formatCost(view?.micros) }),
+        ] }), host)
+      }
+
+      try {
+        ctx.effect(() => slotsService.inject('conversation.composer.dock', () => slotsService.register({
+          name: 'conversation.composer.dock',
+          id: 'lexflow-session-cost',
+          order: 90,
+        }, SessionCostRow)), 'lexflow: session cost row')
+      } catch {
+        // 席位不可用（旧底座或桩上下文）时放弃该行，不得影响其余界面。
+      }
+    }
+
     function clientAdapter(ctx) {
       // 面板行的订阅钩子在本作用域内实现（它要读这里的 slotsService 与快照存储），
       // 因此本作用域需要自己的 React 绑定；上层的 react 绑定属于各模块内部作用域。
@@ -2208,6 +2281,7 @@ const css = ".lexflowSidebar_root{--dsh-sidebar-inline-padding:12px;height:100%;
           try { disposeSidebarPanels = slotsService.subscribe('sidebar.panellist', refreshSidebarPanels) } catch { disposeSidebarPanels = () => {} }
         }
       }
+      installSessionCostRow(ctx, slotsService)
       const pages = pageRegistry()
       const contributions = contributionRegistry()
       const documents = documentApi()

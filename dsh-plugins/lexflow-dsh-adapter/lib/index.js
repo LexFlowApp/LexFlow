@@ -264,8 +264,140 @@ function createHostFace(ctx) {
   })
 }
 
+// ── 会话费用投影 ──────────────────────────────────────────────────────────
+// 官方价目（2026-10-21 核对 https://api-docs.deepseek.com/zh-cn/quick_start/pricing）：
+// 单位「元 / 百万 token」。空闲时段价为高峰价的一半；高峰时段为北京时间周一至周五
+// （不含法定节假日）9:00–12:00、14:00–18:00。旧模型名 deepseek-v4-flash、
+// deepseek-v4-flash-vision-exp 已下线但按 Flash 价格计费，故一并归入 Flash。
+const COST_PRICES = Object.freeze({
+  flash: Object.freeze({ hit: 0.02, miss: 1, out: 4 }),
+  pro: Object.freeze({ hit: 0.15, miss: 4.5, out: 13.5 }),
+})
+const COST_PEAK_MULTIPLIER = 2
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000
+// 国办发明电〔2025〕7 号：2026 年法定节假日（放假日）。调休上班日多为周末，本就按空闲计。
+// 每年国务院公布次年安排后需补录；漏录只会把节假日误按高峰价估高，不会低估。
+const COST_HOLIDAYS = new Set([
+  '2026-01-01', '2026-01-02', '2026-01-03',
+  '2026-02-15', '2026-02-16', '2026-02-17', '2026-02-18', '2026-02-19',
+  '2026-02-20', '2026-02-21', '2026-02-22', '2026-02-23',
+  '2026-04-04', '2026-04-05', '2026-04-06',
+  '2026-05-01', '2026-05-02', '2026-05-03', '2026-05-04', '2026-05-05',
+  '2026-06-19', '2026-06-20', '2026-06-21',
+  '2026-09-25', '2026-09-26', '2026-09-27',
+  '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04',
+  '2026-10-05', '2026-10-06', '2026-10-07',
+])
+
+/** 该时刻是否属于 DeepSeek 高峰计价时段（北京时间）。 */
+export function isCostPeak(time) {
+  if (!Number.isFinite(time)) return false
+  const beijing = new Date(time + BEIJING_OFFSET_MS)
+  const weekday = beijing.getUTCDay()
+  if (weekday === 0 || weekday === 6) return false
+  const month = String(beijing.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(beijing.getUTCDate()).padStart(2, '0')
+  if (COST_HOLIDAYS.has(`${beijing.getUTCFullYear()}-${month}-${day}`)) return false
+  const hour = beijing.getUTCHours()
+  return (hour >= 9 && hour < 12) || (hour >= 14 && hour < 18)
+}
+
+/** 按模型 id 取官方价目；无官方价目的路由（WorkBuddy、Qoder、Kimi 等）返回 undefined。 */
+export function costPricesOf(model) {
+  const id = typeof model === 'string' ? model.toLowerCase() : ''
+  if (id === '') return undefined
+  if (id.includes('pro')) return COST_PRICES.pro
+  if (id.includes('flash')) return COST_PRICES.flash
+  return undefined
+}
+
+function costUsageOf(event) {
+  if (event.type === 'assistant/message' && event.data?.usage !== undefined) return event.data.usage
+  const stream = event.data?.stream
+  if (!Array.isArray(stream)) return undefined
+  for (let index = stream.length - 1; index >= 0; index -= 1) {
+    const record = stream[index]
+    if (record?.type === 'chunk' && record.chunk?.type === 'usage') return record.chunk.usage
+  }
+  return undefined
+}
+
+function costBucketsOf(usage) {
+  if (typeof usage !== 'object' || usage === null) return undefined
+  const isCount = value => Number.isSafeInteger(value) && value >= 0
+  const miss = usage.inputTokens
+  const out = usage.outputTokens
+  const read = usage.cacheReadTokens === undefined ? 0 : usage.cacheReadTokens
+  const write = usage.cacheWriteTokens === undefined ? 0 : usage.cacheWriteTokens
+  if (!isCount(miss) || !isCount(out) || !isCount(read) || !isCount(write)) return undefined
+  return { miss, read, write, out }
+}
+
+function costMicrosOf(buckets, prices, peak) {
+  const factor = peak ? COST_PEAK_MULTIPLIER : 1
+  // 价格单位是「元 / 百万 token」，而费用以微元（1e-6 元）计，两者恰好互为倒数，
+  // 因此 micros = tokens × 单价。缓存写入在 DeepSeek 无独立单价，按未命中价计。
+  return Math.round(((buckets.read * prices.hit) + ((buckets.miss + buckets.write) * prices.miss) + (buckets.out * prices.out)) * factor)
+}
+
+const sessionCostProjection = {
+  key: 'lexflowCost',
+  stateVersion: 1,
+  // 状态与视图都由本单元自行产出，不做二次校验：解析失败会把整张投影表作废。
+  stateSchema: { parse: value => value },
+  init: () => ({ micros: 0, samples: 0, unknownSamples: 0, route: null, last: null }),
+  apply: (state, event) => {
+    if (event.type === 'request/header') {
+      const config = event.data?.header?.config
+      const model = typeof config?.model === 'string' ? config.model : ''
+      if (model === '') return state
+      return { ...state, route: model }
+    }
+    if (event.type === 'llm/retry-started') {
+      if (state.last !== null && state.last.turn === event.data?.turn && state.last.step === event.data?.step) return { ...state, last: null }
+      return state
+    }
+    if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return state
+    const turn = event.data?.turn
+    const step = event.data?.step
+    if (!Number.isSafeInteger(turn) || !Number.isSafeInteger(step)) return state
+    const buckets = costBucketsOf(costUsageOf(event))
+    if (buckets === undefined) return state
+    const repeated = state.last !== null && state.last.turn === turn && state.last.step === step
+    const previous = repeated ? state.last : null
+    const model = (event.type === 'assistant/message' ? event.data?.message?.source?.model : undefined) || state.route || ''
+    const prices = costPricesOf(model)
+    const micros = prices === undefined ? 0 : costMicrosOf(buckets, prices, isCostPeak(event.time))
+    return {
+      ...state,
+      micros: state.micros - (previous === null ? 0 : previous.micros) + micros,
+      samples: previous === null ? state.samples + 1 : state.samples,
+      unknownSamples: previous === null && prices === undefined ? state.unknownSamples + 1 : state.unknownSamples,
+      last: { turn, step, micros },
+    }
+  },
+  wire: {
+    viewSchema: { parse: value => value },
+    view: state => ({
+      micros: state.micros,
+      samples: state.samples,
+      // 会话里只要出现过无官方价目的路由，客户端就不再显示金额、改为破折号，
+      // 避免把小样本金额当成整段对话的费用。
+      hasUnknown: state.unknownSamples > 0,
+    }),
+  },
+}
+
 export function apply(ctx) {
   const settings = ctx.settings
+  // 费用投影是可选的：底座若未提供 sessionProjections，适配层照常工作，只是没有费用行。
+  ctx.inject(['sessionProjections'], scope => {
+    try {
+      return scope.sessionProjections.register(sessionCostProjection)
+    } catch {
+      return undefined
+    }
+  })
   const adapter = Object.freeze({
     contractVersion: 2,
     dshVersion: '0.2.1-rc.2',
